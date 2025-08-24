@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+cd "$HOME/Dropbox/Apps/Bookmark OS"
+
+# Do we have Linuxbrew set up?
+if [ -d /home/linuxbrew/.linuxbrew ]; then
+    eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
+    export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:$XDG_DATA_DIRS"
+fi
+
+date=$(date +"%Y%m%d")
+html="bookmarks-$date.html"
+json="bookmarks-$date.json"
+
+cp backup.html $html &&
+  ./bookmarks2json -i $html -o $json -p -s &&
+  gzip $html $json

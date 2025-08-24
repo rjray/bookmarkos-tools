@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+
+import argparse
+from collections import deque
+from datetime import datetime, timezone
+from json import dump, JSONEncoder
+from operator import attrgetter
+import re
+import sys
+
+
+EXTRACTION_RE = re.compile(r"^<\w+\s+(.*?)>(.*)</\w+>$")
+ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
+
+
+def parse_command_line():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-i", "--input", type=str, default="-",
+        help="File to read bookmarks from, or '-' to read from STDIN"
+    )
+    parser.add_argument(
+        "-o", "--output", type=str, default="-",
+        help="File to write JSON to, or '-' to write to STDOUT"
+    )
+    parser.add_argument(
+        "-p", "--pretty", action="store_true",
+        help="Pretty-print the resulting JSON"
+    )
+    parser.add_argument(
+        "-s", "--sorted", action="store_true",
+        help="Sort JSON keys in output"
+    )
+
+    return parser.parse_args()
+
+
+def parse(content: str):
+    match = EXTRACTION_RE.fullmatch(content)
+    if match is None:
+        print(f"Parse-error on content: {content}")
+        sys.exit(-1)
+
+    attr = match.group(1)
+    text = match.group(2)
+
+    attrib = {}
+    for [key, value] in ATTRIB_RE.findall(attr):
+        if key == "TAGS":
+            value = value.split(", ")
+        attrib[key] = value
+
+    return text, attrib
+
+
+def datestring(stamp: str):
+    return datetime.fromtimestamp(int(stamp), tz=timezone.utc).isoformat()
+
+
+class Encoder(JSONEncoder):
+    def default(self, o):
+        return o.__dict__
+
+
+class Folder():
+    def __init__(self, content):
+        self.content = []
+        self.name = ""
+
+        if len(content) > 0:
+            text, attrib = parse(content)
+
+            self.name = text
+            self.created = datestring(attrib["ADD_DATE"])
+            self.updated = datestring(attrib["LAST_MODIFIED"])
+
+
+class Bookmark():
+    def __init__(self, content):
+        text, attrib = parse(content)
+
+        self.name = text
+        self.url = attrib["HREF"]
+        self.created = datestring(attrib["ADD_DATE"])
+        self.updated = datestring(attrib["LAST_MODIFIED"])
+        self.visited = attrib.get("LAST_VISIT")
+        if self.visited is not None:
+            self.visited = datestring(self.visited)
+        self.tags = attrib.get("TAGS")
+
+
+def process_folder(text: str, depth: int, queue: deque) -> Folder:
+    folder = Folder(text)
+    padding = "    " * depth
+    end_marker = f"{padding}</DL><p>"
+    line = None
+
+    while len(queue) > 0:
+        line = queue.popleft()
+        if line == end_marker:
+            break
+        if line == "":
+            continue
+
+        if "<DT>" in line:
+            m = re.fullmatch(r'^\s+<DT>(<(A|H3).*>)$', line)
+            if m:
+                markup = m.group(1)
+                tag = m.group(2)
+
+                if tag == "A":
+                    folder.content.append(Bookmark(markup))
+                else:
+                    next_line = queue.popleft()
+                    if re.fullmatch(r'^\s+<DL><p>$', next_line):
+                        folder.content.append(
+                            process_folder(markup, depth + 1, queue))
+                    else:
+                        print(f"Missing opening DL after '{markup}'")
+                        sys.exit(-1)
+            else:
+                print(f"Unrecognized line: '{line}")
+                sys.exit(-1)
+        elif "<DD>" in line:
+            m = re.fullmatch(r'^\s+<DD>(.*)$', line)
+            notes = m.group(1)
+
+            # Notes go with the most-recent Bookmark
+            bookmark = folder.content[-1]
+            if isinstance(bookmark, Bookmark):
+                bookmark.notes = notes
+            else:
+                print("DD tag out of place")
+                sys.exit(-1)
+        else:
+            print(f"Unknown content: {line}")
+            sys.exit(-1)
+
+        line = None
+
+    if line is None:
+        print(f"Closing DL for folder {folder.name} not found")
+        sys.exit(-1)
+
+    folder.content.sort(key=attrgetter("name"))
+    return folder
+
+
+def main():
+    args = parse_command_line()
+
+    if args.input == "-":
+        ifh = sys.stdin
+    else:
+        ifh = open(args.input, encoding="utf8")
+
+    data = []
+    with ifh:
+        data = ifh.read().split("\n")
+
+    # Create a queue, dropping the first 4 lines along the way
+    lines = deque(data[4:])
+    if lines[0] != "<DL><p>":
+        print("Missing expected opening DL")
+        sys.exit(-1)
+    else:
+        lines.popleft()
+
+    root = process_folder("", 0, lines)
+
+    if args.output == "-":
+        ofh = sys.stdout
+    else:
+        ofh = open(args.output, encoding="utf8", mode="w")
+
+    json_args = {
+        "cls": Encoder,
+        "ensure_ascii": False,
+    }
+    if args.pretty:
+        json_args["indent"] = 2
+    if args.sorted:
+        json_args["sort_keys"] = True
+
+    with ofh:
+        dump(root, ofh, **json_args)
+        ofh.write("\n")
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
