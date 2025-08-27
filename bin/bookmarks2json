@@ -13,7 +13,15 @@ EXTRACTION_RE = re.compile(r"^<\w+\s+(.*?)>(.*)</\w+>$")
 ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
 
 
+def die(message: str):
+    """Simple shortcut for printing an error and exiting."""
+
+    print(message, file=sys.stderr)
+    sys.exit(-1)
+
+
 def parse_command_line():
+    """Handle command-line arguments."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -37,6 +45,8 @@ def parse_command_line():
 
 
 def parse(content: str):
+    """Parse the pseudo-HTML data in `content`, returning the text content of
+    the tag and a dict of any attributes."""
     match = EXTRACTION_RE.fullmatch(content)
     if match is None:
         print(f"Parse-error on content: {content}")
@@ -55,15 +65,27 @@ def parse(content: str):
 
 
 def datestring(stamp: str):
+    """Turn the given UNIX-style time-stamp `stamp` into a `datetime` object
+    in the UTC timezone and converted to ISO8601 format."""
     return datetime.fromtimestamp(int(stamp), tz=timezone.utc).isoformat()
 
 
 class Encoder(JSONEncoder):
+    """A wrapper-style class around `JSONEncoder` to handle dict-based objects
+    in the structure being converted to JSON."""
+
     def default(self, o):
         return o.__dict__
 
 
 class Folder():
+    """A simple class for representing a folder."""
+
+    name: str
+    content: list
+    created: str
+    updated: str
+
     def __init__(self, content):
         self.content = []
         self.name = ""
@@ -77,6 +99,15 @@ class Folder():
 
 
 class Bookmark():
+    """A simple class for representing a bookmark."""
+
+    name: str
+    url: str
+    created: str
+    updated: str
+    visited: str
+    tags: list[str]
+
     def __init__(self, content):
         text, attrib = parse(content)
 
@@ -91,6 +122,10 @@ class Bookmark():
 
 
 def process_folder(text: str, depth: int, queue: deque) -> Folder:
+    """Handle the parsing and conversion of one folder. Called after the
+    opening `<DL>` tag has been detected and proceeds until the closing tag
+    is detected. Recurses into any sub-folders found."""
+
     folder = Folder(text)
     padding = "    " * depth
     end_marker = f"{padding}</DL><p>"
@@ -117,11 +152,9 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
                         folder.content.append(
                             process_folder(markup, depth + 1, queue))
                     else:
-                        print(f"Missing opening DL after '{markup}'")
-                        sys.exit(-1)
+                        die(f"Missing opening <DL> after '{markup}'")
             else:
-                print(f"Unrecognized line: '{line}")
-                sys.exit(-1)
+                die(f"Unrecognized line: '{line}")
         elif "<DD>" in line:
             m = re.fullmatch(r'^\s+<DD>(.*)$', line)
             notes = m.group(1)
@@ -131,23 +164,22 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
             if isinstance(bookmark, Bookmark):
                 bookmark.notes = notes
             else:
-                print("DD tag out of place")
-                sys.exit(-1)
+                die("<DD> tag out of place")
         else:
-            print(f"Unknown content: {line}")
-            sys.exit(-1)
+            die(f"Unknown content: {line}")
 
         line = None
 
     if line is None:
-        print(f"Closing DL for folder {folder.name} not found")
-        sys.exit(-1)
+        die(f"Closing <DL> for folder {folder.name} not found")
 
     folder.content.sort(key=attrgetter("name"))
     return folder
 
 
 def main():
+    """Main loop. Parse args and process the input content into the output."""
+
     args = parse_command_line()
 
     if args.input == "-":
@@ -162,8 +194,7 @@ def main():
     # Create a queue, dropping the first 4 lines along the way
     lines = deque(data[4:])
     if lines[0] != "<DL><p>":
-        print("Missing expected opening DL")
-        sys.exit(-1)
+        die("Missing expected opening <DL>")
     else:
         lines.popleft()
 
