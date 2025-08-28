@@ -72,7 +72,7 @@ class Bookmark(Node):
         self.visited = attrib.get("LAST_VISIT")
         if self.visited is not None:
             self.visited = datestring(self.visited)
-        self.tags.extend(attrib.get("TAGS"))
+        self.tags.extend(attrib.get("TAGS", []))
 
         return self
 
