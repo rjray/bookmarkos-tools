@@ -13,5 +13,5 @@ html="bookmarks-$date.html"
 json="bookmarks-$date.json"
 
 cp backup.html $html &&
-  bookmarks2json --pretty --sorted --input $html --output $json &&
+  bookmarks2json --input $html --output $json &&
   gzip -9 $html $json
