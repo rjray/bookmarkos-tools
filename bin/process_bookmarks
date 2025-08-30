@@ -12,6 +12,6 @@ date=$(date +"%Y%m%d")
 html="bookmarks-$date.html"
 json="bookmarks-$date.json"
 
-cp backup.html $html &&
-  bookmarks2json --input $html --output $json &&
+cp backup.html $html && \
+  bookmarks2json --input $html --output $json && \
   gzip -9 $html $json
