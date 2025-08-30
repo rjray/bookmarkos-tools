@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""A general script to produce a series of different reports on bookmarks data
+as transformed to JSON by the `bookmarks2json` tool."""
+
+import argparse
+from bisect import bisect_left
+from dataclasses import dataclass, field
+from datetime import timedelta, datetime
+import gzip
+import json
+from operator import itemgetter
+import re
+import sys
+
+
+@dataclass
+class CoreMetrics():
+    """The core metrics that are gathered for bookmarks, tags, and folders."""
+
+    count: int = 0
+    items: set = field(default_factory=set)
+    added: set = field(default_factory=set)
+    added_count: int = 0
+    deleted: set = field(default_factory=set)
+    deleted_count: int = 0
+    delta: int = 0
+    delta_pct: float = 0.0
+
+
+@dataclass
+class SizeMetrics():
+    """Metrics related to size, used for folders and tags."""
+
+    sizes: dict = field(default_factory=dict)
+    min_size: int = sys.maxsize
+    max_size: int = 0
+    avg_size: float = 0.0
+
+
+@dataclass
+class FoldersMetrics(CoreMetrics, SizeMetrics):
+    """CoreMetrics plus anything extra needed for folders."""
+
+
+@dataclass
+class BookmarksMetrics(CoreMetrics):
+    """CoreMetrics plus anything extra needed for bookmarks."""
+
+
+@dataclass
+class TagsMetrics(CoreMetrics, SizeMetrics):
+    """CoreMetrics plus anything extra needed for tags."""
+
+    unique_tags_count: int = 0
+
+
+@dataclass
+class Metrics():
+    """This is a data-class for gathering the metrics of a week's data. It
+    combines `FoldersMetrics`, `BookmarksMetrics` and `TagsMetrics`."""
+
+    folders: FoldersMetrics = field(default_factory=FoldersMetrics)
+    bookmarks: BookmarksMetrics = field(default_factory=BookmarksMetrics)
+    tags: TagsMetrics = field(default_factory=TagsMetrics)
+    all_bookmarks: list = field(default_factory=list)
+
+
+class Encoder(json.JSONEncoder):
+    """A simple encoder to make it possible to serialze Metrics objects."""
+
+    def default(self, o):
+        if isinstance(o, set):
+            return sorted(list(o))
+
+        return o.__dict__
+
+
+def die(message: str):
+    """Simple shortcut for printing an error and exiting."""
+
+    print(message, file=sys.stderr)
+    sys.exit(-1)
+
+
+def parse_command_line() -> argparse.Namespace:
+    """Declaration of command-line parameters and parsing of them."""
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "command", action="store", nargs=1,
+        choices=["weekly"],
+        help="Report to run"
+    )
+    parser.add_argument(
+        "files", action="store", nargs="+",
+        help="One or more JSON files to process"
+    )
+
+    return parser.parse_args()
+
+
+def datetime_from_filename(file: str) -> datetime:
+    """Scan the given file-name for a sequence of 8 digits, which will be
+    interpreted as yyyy/mm/dd."""
+
+    match = re.search(r"(\d\d\d\d)(\d\d)(\d\d)", file)
+    if match is None:
+        die("File name does not contain date")
+
+    return datetime(
+        int(match.group(1)), int(match.group(2)), int(match.group(3))
+    )
+
+
+def read_json_data(file: str):
+    """Read the bookmarks data from the given file as JSON content. Handles
+    gzip-compressed content."""
+
+    if file.endswith(".gz"):
+        # Gzip'd content
+        fh = gzip.open(file, "rb")
+    else:
+        # Assume plain-text content
+        fh = open(file, "r", encoding="utf8")
+
+    with fh:
+        data = json.load(fh)
+
+    return data
+
+
+def gather_metrics(week) -> Metrics:
+    """Determine the metrics of the given week's data."""
+
+    metrics = Metrics()
+
+    _gather_metrics(week, [""], metrics)
+
+    # Calculate averages
+    metrics.tags.avg_size = metrics.tags.count / metrics.bookmarks.count
+    metrics.folders.avg_size = metrics.bookmarks.count / metrics.folders.count
+
+    # Sort `all_bookmarks` by `created` field
+    metrics.all_bookmarks.sort(key=itemgetter("created"))
+
+    return metrics
+
+
+def _gather_metrics(node, path, metrics: Metrics) -> None:
+    """Recursively gather metrics at folder `node`."""
+
+    folder = "::".join(path)
+
+    bookmarks = [x for x in node["content"] if "tags" in x]
+    subfolders = [x for x in node["content"] if "content" in x]
+    num_bookmarks = len(bookmarks)
+
+    # Folder-oriented metrics
+    metrics.folders.count += 1
+    metrics.folders.items.add(folder)
+    metrics.folders.sizes[folder] = num_bookmarks
+    metrics.folders.max_size = max(metrics.folders.max_size, num_bookmarks)
+    metrics.folders.min_size = min(metrics.folders.min_size, num_bookmarks)
+
+    # Process bookmarks, for bookmark-oriented and tag-oriented metrics
+    metrics.bookmarks.count += num_bookmarks
+    for bookmark in bookmarks:
+        metrics.bookmarks.items.add(bookmark["created"])
+        metrics.all_bookmarks.append(bookmark)
+
+        num_tags = len(bookmark["tags"])
+        metrics.tags.count += num_tags
+        metrics.tags.max_size = max(metrics.tags.max_size, num_tags)
+        metrics.tags.min_size = min(metrics.tags.min_size, num_tags)
+
+        for tag in bookmark["tags"]:
+            metrics.tags.items.add(tag)
+            if tag not in metrics.tags.sizes:
+                metrics.tags.sizes[tag] = 1
+            else:
+                metrics.tags.sizes[tag] += 1
+
+    for subfolder in subfolders:
+        newpath = path.copy()
+        newpath.append(subfolder["name"])
+        _gather_metrics(subfolder, newpath, metrics)
+
+
+def get_metrics(week_file) -> Metrics:
+    """Read the JSON data from `week_file` for a given week, then call
+    `gather_metrics` to determine the metrics for the week."""
+
+    return gather_metrics(read_json_data(week_file))
+
+
+def finish_metrics(this_week: Metrics, last_week: Metrics):
+    """Calculate the additional values (differences, etc.) between the two sets
+    of metrics. These values only update the current-week's metrics."""
+
+    this_week.bookmarks.delta = \
+        this_week.bookmarks.count - last_week.bookmarks.count
+    this_week.bookmarks.delta_pct = \
+        this_week.bookmarks.delta / last_week.bookmarks.count
+    this_week.bookmarks.added = \
+        this_week.bookmarks.items - last_week.bookmarks.items
+    this_week.bookmarks.added_count = len(this_week.bookmarks.added)
+    this_week.bookmarks.deleted = \
+        last_week.bookmarks.items - this_week.bookmarks.items
+    this_week.bookmarks.deleted_count = len(this_week.bookmarks.deleted)
+
+    this_week.folders.delta = this_week.folders.count - last_week.folders.count
+    this_week.folders.delta_pct = \
+        this_week.folders.delta / last_week.folders.count
+    this_week.folders.added = this_week.folders.items - last_week.folders.items
+    this_week.folders.added_count = len(this_week.folders.added)
+    this_week.folders.deleted = \
+        last_week.folders.items - this_week.folders.items
+    this_week.folders.deleted_count = len(this_week.folders.deleted)
+
+    this_tags = this_week.tags.items
+    last_tags = last_week.tags.items
+    this_week.tags.unique_tags_count = len(this_tags)
+    last_week.tags.unique_tags_count = len(last_tags)
+    this_week.tags.delta = this_week.tags.unique_tags_count - \
+        last_week.tags.unique_tags_count
+    this_week.tags.delta_pct = \
+        this_week.tags.delta / last_week.tags.unique_tags_count
+    this_week.tags.added = this_tags - last_tags
+    this_week.tags.added_count = len(this_week.tags.added)
+    this_week.tags.deleted = last_tags - this_tags
+    this_week.tags.deleted_count = len(this_week.tags.deleted)
+
+
+def output(lines, fp=sys.stdout) -> None:
+    """Output the pairs provided."""
+
+    for label, value in lines:
+        print(f"{label:25} {value}", file=fp)
+
+
+def output_bookmarks_weekly(
+    these: Metrics, those: Metrics, fp=sys.stdout
+) -> None:
+    """Weekly output for bookmark metrics."""
+
+    metrics = these.bookmarks
+    bookmarks = these.all_bookmarks
+
+    content = [("Total bookmarks:", metrics.count)]
+    if metrics.added_count:
+        content.append(("Bookmarks added:", metrics.added_count))
+    if metrics.deleted_count:
+        content.append(("Bookmarks deleted:", metrics.deleted_count))
+    if metrics.delta:
+        content.append(
+            (
+                "Bookmarks delta:",
+                f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
+            )
+        )
+
+    output(content, fp)
+
+    if metrics.added_count:
+        added = []
+        for item in sorted(list(metrics.added)):
+            pos = bisect_left(bookmarks, item, key=itemgetter("created"))
+            added.append((bookmarks[pos]["name"], bookmarks[pos]["url"]))
+
+        content = [("    Added bookmarks:", added[0][0])]
+        for item in added[1:]:
+            content.append(("", item[0]))
+
+        output(content, fp)
+
+    if metrics.deleted_count:
+        bookmarks2 = those.all_bookmarks
+        deleted = []
+        for item in sorted(list(metrics.deleted)):
+            pos = bisect_left(bookmarks2, item, key=itemgetter("created"))
+            deleted.append((bookmarks2[pos]["name"], bookmarks2[pos]["url"]))
+
+        content = [("    Deleted bookmarks:", deleted[0][0])]
+        for item in deleted[1:]:
+            content.append(("", item[0]))
+
+        output(content, fp)
+
+
+def output_folders_weekly(these: Metrics, fp=sys.stdout) -> None:
+    """Weekly output for folder metrics."""
+
+    metrics = these.folders
+
+    content = [("Total folders:", metrics.count)]
+    if metrics.added_count:
+        content.append(["Folders added:", metrics.added_count])
+    if metrics.deleted_count:
+        content.append(["Folders deleted:", metrics.deleted_count])
+    if metrics.delta:
+        content.append(
+            [
+                "Folders delta:",
+                f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
+            ]
+        )
+
+    output(content, fp)
+
+    if metrics.added_count:
+        added = sorted(list(metrics.added))
+
+        content = [("    Added folders:", added[0])]
+        for item in added[1:]:
+            content.append(("", item))
+
+        output(content, fp)
+
+    if metrics.deleted_count:
+        deleted = sorted(list(metrics.deleted))
+
+        content = [("    Deleted folders:", deleted[0])]
+        for item in deleted[1:]:
+            content.append(("", item))
+
+        output(content, fp)
+
+
+def output_tags_weekly(these: Metrics, fp=sys.stdout) -> None:
+    """Weekly output for tag metrics."""
+
+    metrics = these.tags
+
+    content = [
+        ("Total tags:", metrics.count),
+        ("Unique tags:", metrics.unique_tags_count)
+    ]
+    if metrics.added_count:
+        content.append(["New tags added:", metrics.added_count])
+    if metrics.deleted_count:
+        content.append(["Old tags deleted:", metrics.deleted_count])
+    if metrics.delta:
+        content.append(
+            [
+                "Tags delta:",
+                f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
+            ]
+        )
+
+    output(content, fp)
+
+    if metrics.added_count:
+        added = sorted(list(metrics.added))
+
+        content = [("    Added tags:", added[0])]
+        for item in added[1:]:
+            content.append(("", item))
+
+        output(content, fp)
+
+    if metrics.deleted_count:
+        deleted = sorted(list(metrics.deleted))
+
+        content = [("    Deleted tags:", deleted[0])]
+        for item in deleted[1:]:
+            content.append(("", item))
+
+        output(content, fp)
+
+
+def output_weekly(
+    this_week: Metrics, last_week: Metrics, fp=sys.stdout
+) -> None:
+    """Emit the weekly report content."""
+
+    output_folders_weekly(this_week, fp)
+    print(file=fp)
+    output_bookmarks_weekly(this_week, last_week, fp)
+    print(file=fp)
+    output_tags_weekly(this_week, fp)
+
+
+def weekly_report(args: argparse.Namespace):
+    """Produce the weekly report."""
+
+    if len(args.files) == 1:
+        this_week_file = args.files[0]
+        base_dt = datetime_from_filename(this_week_file)
+        last_week_dt = base_dt - timedelta(weeks=1)
+        last_week_str = last_week_dt.strftime("%Y%m%d")
+        last_week_file = re.sub(r"\d{8}", last_week_str, this_week_file)
+    else:
+        last_week_file, this_week_file = args.files[:2]
+
+    this_week = get_metrics(this_week_file)
+    last_week = get_metrics(last_week_file)
+    finish_metrics(this_week, last_week)
+
+    output_weekly(this_week, last_week)
+
+
+def main():
+    """Main execution loop."""
+
+    args = parse_command_line()
+
+    weekly_report(args)
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
