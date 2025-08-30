@@ -11,6 +11,7 @@ import json
 from operator import itemgetter
 import re
 import sys
+from typing import TextIO
 
 
 @dataclass
@@ -130,6 +131,16 @@ def read_json_data(file: str):
     return data
 
 
+def average_size(metrics: SizeMetrics) -> float:
+    """Calculate the average size for either `folders` or `tags`."""
+
+    sizes = metrics.sizes
+    count = len(sizes)
+    total = sum(sizes[x] for x in sizes.keys())
+
+    return total / count
+
+
 def gather_metrics(week) -> Metrics:
     """Determine the metrics of the given week's data."""
 
@@ -138,8 +149,8 @@ def gather_metrics(week) -> Metrics:
     _gather_metrics(week, [""], metrics)
 
     # Calculate averages
-    metrics.tags.avg_size = metrics.tags.count / metrics.bookmarks.count
-    metrics.folders.avg_size = metrics.bookmarks.count / metrics.folders.count
+    metrics.tags.avg_size = average_size(metrics.tags)
+    metrics.folders.avg_size = average_size(metrics.folders)
 
     # Sort `all_bookmarks` by `created` field
     metrics.all_bookmarks.sort(key=itemgetter("created"))
@@ -154,17 +165,17 @@ def _gather_metrics(node, path, metrics: Metrics) -> None:
 
     bookmarks = [x for x in node["content"] if "tags" in x]
     subfolders = [x for x in node["content"] if "content" in x]
-    num_bookmarks = len(bookmarks)
+    folder_size = len(node["content"])
 
     # Folder-oriented metrics
     metrics.folders.count += 1
     metrics.folders.items.add(folder)
-    metrics.folders.sizes[folder] = num_bookmarks
-    metrics.folders.max_size = max(metrics.folders.max_size, num_bookmarks)
-    metrics.folders.min_size = min(metrics.folders.min_size, num_bookmarks)
+    metrics.folders.sizes[folder] = folder_size
+    metrics.folders.max_size = max(metrics.folders.max_size, folder_size)
+    metrics.folders.min_size = min(metrics.folders.min_size, folder_size)
 
     # Process bookmarks, for bookmark-oriented and tag-oriented metrics
-    metrics.bookmarks.count += num_bookmarks
+    metrics.bookmarks.count += len(bookmarks)
     for bookmark in bookmarks:
         metrics.bookmarks.items.add(bookmark["created"])
         metrics.all_bookmarks.append(bookmark)
@@ -198,6 +209,7 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
     """Calculate the additional values (differences, etc.) between the two sets
     of metrics. These values only update the current-week's metrics."""
 
+    # Additional values for bookmarks
     this_week.bookmarks.delta = \
         this_week.bookmarks.count - last_week.bookmarks.count
     this_week.bookmarks.delta_pct = \
@@ -209,6 +221,7 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
         last_week.bookmarks.items - this_week.bookmarks.items
     this_week.bookmarks.deleted_count = len(this_week.bookmarks.deleted)
 
+    # Additional values for folders
     this_week.folders.delta = this_week.folders.count - last_week.folders.count
     this_week.folders.delta_pct = \
         this_week.folders.delta / last_week.folders.count
@@ -218,6 +231,7 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
         last_week.folders.items - this_week.folders.items
     this_week.folders.deleted_count = len(this_week.folders.deleted)
 
+    # Additional values for tags
     this_tags = this_week.tags.items
     last_tags = last_week.tags.items
     this_week.tags.unique_tags_count = len(this_tags)
@@ -232,60 +246,21 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
     this_week.tags.deleted_count = len(this_week.tags.deleted)
 
 
-def output(lines, fp=sys.stdout) -> None:
+def format_bookmark(bookmark: dict) -> str:
+    """Format the bookmark as a hyperlink."""
+
+    name = bookmark["name"]
+    created = datetime.fromisoformat(bookmark["created"]).astimezone()
+    timestamp = created.ctime()
+
+    return f"{name} ({timestamp})"
+
+
+def output(lines, fp: TextIO) -> None:
     """Output the pairs provided."""
 
     for label, value in lines:
         print(f"{label:25} {value}", file=fp)
-
-
-def output_bookmarks_weekly(
-    these: Metrics, those: Metrics, fp=sys.stdout
-) -> None:
-    """Weekly output for bookmark metrics."""
-
-    metrics = these.bookmarks
-    bookmarks = these.all_bookmarks
-
-    content = [("Total bookmarks:", metrics.count)]
-    if metrics.added_count:
-        content.append(("Bookmarks added:", metrics.added_count))
-    if metrics.deleted_count:
-        content.append(("Bookmarks deleted:", metrics.deleted_count))
-    if metrics.delta:
-        content.append(
-            (
-                "Bookmarks delta:",
-                f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
-            )
-        )
-
-    output(content, fp)
-
-    if metrics.added_count:
-        added = []
-        for item in sorted(list(metrics.added)):
-            pos = bisect_left(bookmarks, item, key=itemgetter("created"))
-            added.append((bookmarks[pos]["name"], bookmarks[pos]["url"]))
-
-        content = [("    Added bookmarks:", added[0][0])]
-        for item in added[1:]:
-            content.append(("", item[0]))
-
-        output(content, fp)
-
-    if metrics.deleted_count:
-        bookmarks2 = those.all_bookmarks
-        deleted = []
-        for item in sorted(list(metrics.deleted)):
-            pos = bisect_left(bookmarks2, item, key=itemgetter("created"))
-            deleted.append((bookmarks2[pos]["name"], bookmarks2[pos]["url"]))
-
-        content = [("    Deleted bookmarks:", deleted[0][0])]
-        for item in deleted[1:]:
-            content.append(("", item[0]))
-
-        output(content, fp)
 
 
 def output_folders_weekly(these: Metrics, fp=sys.stdout) -> None:
@@ -306,25 +281,77 @@ def output_folders_weekly(these: Metrics, fp=sys.stdout) -> None:
             ]
         )
 
-    output(content, fp)
-
     if metrics.added_count:
         added = sorted(list(metrics.added))
 
-        content = [("    Added folders:", added[0])]
+        content.append(("    Added folders:", added[0]))
         for item in added[1:]:
             content.append(("", item))
-
-        output(content, fp)
 
     if metrics.deleted_count:
         deleted = sorted(list(metrics.deleted))
 
-        content = [("    Deleted folders:", deleted[0])]
+        content.append(("    Deleted folders:", deleted[0]))
         for item in deleted[1:]:
             content.append(("", item))
 
-        output(content, fp)
+    content.append(
+        (
+            "Largest folder size:",
+            max(metrics.sizes[x] for x in metrics.sizes.keys())
+        )
+    )
+    content.append(
+        (
+            "Smallest folder size:",
+            min(metrics.sizes[x] for x in metrics.sizes.keys())
+        )
+    )
+    content.append(("Average folder size:", f"{metrics.avg_size:.2f}"))
+    output(content, fp)
+
+
+def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
+    """Weekly output for bookmark metrics."""
+
+    metrics = these.bookmarks
+    bookmarks = these.all_bookmarks
+
+    content = [("Total bookmarks:", metrics.count)]
+    if metrics.added_count:
+        content.append(("Bookmarks added:", metrics.added_count))
+    if metrics.deleted_count:
+        content.append(("Bookmarks deleted:", metrics.deleted_count))
+    if metrics.delta:
+        content.append(
+            (
+                "Bookmarks delta:",
+                f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
+            )
+        )
+
+    if metrics.added_count:
+        added = []
+        for item in sorted(list(metrics.added)):
+            pos = bisect_left(bookmarks, item, key=itemgetter("created"))
+            added.append(format_bookmark(bookmarks[pos]))
+
+        content.append(("    Added bookmarks:", added[0]))
+        for item in added[1:]:
+            content.append(("", item))
+
+    if metrics.deleted_count:
+        bookmarks2 = those.all_bookmarks
+        deleted = []
+        for item in sorted(list(metrics.deleted)):
+            pos = bisect_left(bookmarks2, item, key=itemgetter("created"))
+            deleted.append((bookmarks2[pos]["name"], bookmarks2[pos]["url"]))
+
+        content.append(("    Deleted bookmarks:", deleted[0][0]))
+        for item in deleted[1:]:
+            content.append(("", item[0]))
+
+    output(content, fp)
 
 
 def output_tags_weekly(these: Metrics, fp=sys.stdout) -> None:
@@ -348,25 +375,36 @@ def output_tags_weekly(these: Metrics, fp=sys.stdout) -> None:
             ]
         )
 
-    output(content, fp)
-
     if metrics.added_count:
         added = sorted(list(metrics.added))
 
-        content = [("    Added tags:", added[0])]
+        content.append(("    Added tags:", added[0]))
         for item in added[1:]:
             content.append(("", item))
-
-        output(content, fp)
 
     if metrics.deleted_count:
         deleted = sorted(list(metrics.deleted))
 
-        content = [("    Deleted tags:", deleted[0])]
+        content.append(("    Deleted tags:", deleted[0]))
         for item in deleted[1:]:
             content.append(("", item))
 
-        output(content, fp)
+    content.append(
+        (
+            "Largest tag size:",
+            max(metrics.sizes[x] for x in metrics.sizes.keys())
+        )
+    )
+    content.append(
+        (
+            "Smallest tag size:",
+            min(metrics.sizes[x] for x in metrics.sizes.keys())
+        )
+    )
+    content.append(("Average tag reach:", f"{metrics.avg_size:.2f}"))
+    content.append(("Highest number of tags:", metrics.max_size))
+    content.append(("Lowest number of tags:", metrics.min_size))
+    output(content, fp)
 
 
 def output_weekly(
