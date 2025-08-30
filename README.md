@@ -20,6 +20,9 @@ Tools currently implemented are:
   using regular expressions to get the actual content out of the `A` and `H3`
   tags. It produces a JSON file of one object that represents the "root" folder
   of bookmarks.
+* The Python script `bin/bookmarks_report` takes one or two JSON files produced
+  by `bookmarks2json` and produces reports. Right now, it only does a limited
+  text-only report on weekly activity.
 * The sh/bash script `bin/process_bookmarks` is a simple shell script run as a
   cron-job each Sunday shortly after BookmarkOS pushs the backup file to my
   Dropbox folder. It runs `bookmarks2json` and gzip-compresses the dated copy
