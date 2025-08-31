@@ -263,7 +263,7 @@ def output(lines, fp: TextIO) -> None:
         print(f"{label:25} {value}", file=fp)
 
 
-def output_folders_weekly(these: Metrics, fp=sys.stdout) -> None:
+def output_folders_weekly(these: Metrics, fp: TextIO) -> None:
     """Weekly output for folder metrics."""
 
     metrics = these.folders
@@ -354,7 +354,7 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
     output(content, fp)
 
 
-def output_tags_weekly(these: Metrics, fp=sys.stdout) -> None:
+def output_tags_weekly(these: Metrics, fp: TextIO) -> None:
     """Weekly output for tag metrics."""
 
     metrics = these.tags
@@ -407,9 +407,7 @@ def output_tags_weekly(these: Metrics, fp=sys.stdout) -> None:
     output(content, fp)
 
 
-def output_weekly(
-    this_week: Metrics, last_week: Metrics, fp=sys.stdout
-) -> None:
+def output_weekly(this_week: Metrics, last_week: Metrics, fp: TextIO) -> None:
     """Emit the weekly report content."""
 
     output_folders_weekly(this_week, fp)
@@ -419,7 +417,7 @@ def output_weekly(
     output_tags_weekly(this_week, fp)
 
 
-def weekly_report(args: argparse.Namespace):
+def weekly_report(args: argparse.Namespace, file: TextIO = sys.stdout):
     """Produce the weekly report."""
 
     if len(args.files) == 1:
@@ -435,7 +433,7 @@ def weekly_report(args: argparse.Namespace):
     last_week = get_metrics(last_week_file)
     finish_metrics(this_week, last_week)
 
-    output_weekly(this_week, last_week)
+    output_weekly(this_week, last_week, file)
 
 
 def main():
