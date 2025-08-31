@@ -345,11 +345,11 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
         deleted = []
         for item in sorted(list(metrics.deleted)):
             pos = bisect_left(bookmarks2, item, key=itemgetter("created"))
-            deleted.append((bookmarks2[pos]["name"], bookmarks2[pos]["url"]))
+            deleted.append(format_bookmark(bookmarks2[pos]))
 
-        content.append(("    Deleted bookmarks:", deleted[0][0]))
+        content.append(("    Deleted bookmarks:", deleted[0]))
         for item in deleted[1:]:
-            content.append(("", item[0]))
+            content.append(("", item))
 
     output(content, fp)
 
