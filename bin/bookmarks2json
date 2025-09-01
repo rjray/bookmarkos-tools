@@ -2,18 +2,17 @@
 """Convert the pseudo-HTML content of a bookmarks backup into a JSON structure
 that can be used for other purposes."""
 
+# pylint: disable=wrong-import-position
+
 import argparse
-from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from json import dump, JSONEncoder
-from operator import attrgetter
-import re
+import os
 import sys
 
+_root_dir = os.path.dirname(__file__)
+sys.path.append(_root_dir)
 
-EXTRACTION_RE = re.compile(r"^<\w+\s+(.*?)>(.*)</\w+>$")
-ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
+from bookmarkos.parser import parse_bookmarks  # nopep8
 
 
 class Encoder(JSONEncoder):
@@ -22,66 +21,6 @@ class Encoder(JSONEncoder):
 
     def default(self, o):
         return o.__dict__
-
-
-@dataclass
-class Node():
-    """A base-class for Folder and Bookmark."""
-
-    name: str = ""
-    created: str = ""
-    updated: str = ""
-
-
-@dataclass
-class Folder(Node):
-    """A simple class for representing a folder."""
-
-    content: list[Node] = field(default_factory=list)
-
-    def fill(self, markup):
-        """Fill in the Folder object with data from `markup`."""
-
-        if len(markup) > 0:
-            text, attrib = parse(markup)
-
-            self.name = text
-            self.created = datestring(attrib["ADD_DATE"])
-            self.updated = datestring(attrib["LAST_MODIFIED"])
-
-        return self
-
-
-@dataclass
-class Bookmark(Node):
-    """A simple class for representing a bookmark."""
-
-    url: str = ""
-    visited: str = None
-    tags: list[str] = field(default_factory=list)
-
-    def fill(self, markup):
-        """Fill in the Bookmark object with data from `markup`."""
-
-        text, attrib = parse(markup)
-
-        self.name = text
-        self.url = attrib["HREF"]
-        self.created = datestring(attrib["ADD_DATE"])
-        self.updated = datestring(attrib["LAST_MODIFIED"])
-        self.visited = attrib.get("LAST_VISIT")
-        if self.visited is not None:
-            self.visited = datestring(self.visited)
-        self.tags.extend(attrib.get("TAGS", []))
-
-        return self
-
-
-def die(message: str):
-    """Simple shortcut for printing an error and exiting."""
-
-    print(message, file=sys.stderr)
-    sys.exit(-1)
 
 
 def parse_command_line():
@@ -108,110 +47,15 @@ def parse_command_line():
     return parser.parse_args()
 
 
-def parse(content: str):
-    """Parse the pseudo-HTML data in `content`, returning the text content of
-    the tag and a dict of any attributes."""
-    match = EXTRACTION_RE.fullmatch(content)
-    if match is None:
-        print(f"Parse-error on content: {content}")
-        sys.exit(-1)
-
-    attr = match.group(1)
-    text = match.group(2)
-
-    attrib = {}
-    for [key, value] in ATTRIB_RE.findall(attr):
-        if key == "TAGS":
-            value = value.split(", ")
-        attrib[key] = value
-
-    return text, attrib
-
-
-def datestring(stamp: str):
-    """Turn the given UNIX-style time-stamp `stamp` into a `datetime` object
-    in the UTC timezone and converted to ISO8601 format."""
-    return datetime.fromtimestamp(int(stamp), tz=timezone.utc).isoformat()
-
-
-def process_folder(text: str, depth: int, queue: deque) -> Folder:
-    """Handle the parsing and conversion of one folder. Called after the
-    opening `<DL>` tag has been detected and proceeds until the closing tag
-    is detected. Recurses into any sub-folders found."""
-
-    folder = Folder().fill(text)
-    padding = "    " * depth
-    end_marker = f"{padding}</DL><p>"
-    line = None
-
-    while len(queue) > 0:
-        line = queue.popleft()
-        if line == end_marker:
-            break
-        if line == "":
-            continue
-
-        if "<DT>" in line:
-            m = re.fullmatch(r'^\s+<DT>(<(A|H3).*>)$', line)
-            if m:
-                markup = m.group(1)
-                tag = m.group(2)
-
-                if tag == "A":
-                    folder.content.append(Bookmark().fill(markup))
-                else:
-                    next_line = queue.popleft()
-                    if re.fullmatch(r'^\s+<DL><p>$', next_line):
-                        folder.content.append(
-                            process_folder(markup, depth + 1, queue))
-                    else:
-                        die(f"Missing opening <DL> after '{markup}'")
-            else:
-                die(f"Unrecognized line: '{line}")
-        elif "<DD>" in line:
-            m = re.fullmatch(r'^\s+<DD>(.*)$', line)
-            notes = m.group(1)
-
-            # Notes go with the most-recent Bookmark
-            bookmark = folder.content[-1]
-            if isinstance(bookmark, Bookmark):
-                bookmark.notes = notes
-            else:
-                die("<DD> tag out of place")
-        else:
-            die(f"Unknown content: {line}")
-
-        line = None
-
-    if line is None:
-        die(f"Closing <DL> for folder {folder.name} not found")
-
-    folder.content.sort(key=attrgetter("name"))
-    return folder
-
-
 def main():
     """Main loop. Parse args and process the input content into the output."""
 
     args = parse_command_line()
 
     if args.input == "-":
-        ifh = sys.stdin
+        root = parse_bookmarks(sys.stdin)
     else:
-        ifh = open(args.input, encoding="utf8")
-
-    data = []
-    with ifh:
-        data = ifh.read().split("\n")
-
-    # Create a queue, dropping the first 4 lines along the way
-    lines = deque(data[4:])
-    if lines[0] != "<DL><p>":
-        die("Missing expected opening <DL>")
-    else:
-        lines.popleft()
-
-    root = process_folder("", 0, lines)
+        root = parse_bookmarks(args.input)
 
     if args.output == "-":
         ofh = sys.stdout
