@@ -160,7 +160,7 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
 
 def datestring(stamp: str):
     """Turn the given UNIX-style time-stamp `stamp` into a `datetime` object
-    in the UTC timezone and converted to ISO8601 format."""
+    in the UTC timezone and return it converted to an ISO8601 format string."""
     return datetime.fromtimestamp(int(stamp), tz=timezone.utc).isoformat()
 
 
@@ -183,6 +183,5 @@ def parse_bookmarks(content: str | TextIO):
         raise ValueError("Missing expected opening <DL>")
 
     lines.popleft()
-    root = process_folder("", 0, lines)
 
-    return root
+    return process_folder("", 0, lines)
