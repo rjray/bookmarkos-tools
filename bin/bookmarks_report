@@ -76,13 +76,6 @@ class Encoder(json.JSONEncoder):
         return o.__dict__
 
 
-def die(message: str):
-    """Simple shortcut for printing an error and exiting."""
-
-    print(message, file=sys.stderr)
-    sys.exit(-1)
-
-
 def parse_command_line() -> argparse.Namespace:
     """Declaration of command-line parameters and parsing of them."""
 
@@ -107,7 +100,7 @@ def datetime_from_filename(file: str) -> datetime:
 
     match = re.search(r"(\d\d\d\d)(\d\d)(\d\d)", file)
     if match is None:
-        die("File name does not contain date")
+        raise ValueError("File name does not contain date")
 
     return datetime(
         int(match.group(1)), int(match.group(2)), int(match.group(3))
@@ -268,17 +261,17 @@ def output_folders_weekly(these: Metrics, fp: TextIO) -> None:
 
     metrics = these.folders
 
-    content = [("Total folders:", metrics.count)]
+    content: list[tuple[str, int | str]] = [("Total folders:", metrics.count)]
     if metrics.added_count:
-        content.append(["Folders added:", metrics.added_count])
+        content.append(("Folders added:", metrics.added_count))
     if metrics.deleted_count:
-        content.append(["Folders deleted:", metrics.deleted_count])
+        content.append(("Folders deleted:", metrics.deleted_count))
     if metrics.delta:
         content.append(
-            [
+            (
                 "Folders delta:",
                 f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
-            ]
+            )
         )
 
     if metrics.added_count:
@@ -317,7 +310,9 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
     metrics = these.bookmarks
     bookmarks = these.all_bookmarks
 
-    content = [("Total bookmarks:", metrics.count)]
+    content: list[tuple[str, int | str]] = [
+        ("Total bookmarks:", metrics.count)
+    ]
     if metrics.added_count:
         content.append(("Bookmarks added:", metrics.added_count))
     if metrics.deleted_count:
@@ -359,20 +354,20 @@ def output_tags_weekly(these: Metrics, fp: TextIO) -> None:
 
     metrics = these.tags
 
-    content = [
+    content: list[tuple[str, int | str]] = [
         ("Total tags:", metrics.count),
         ("Unique tags:", metrics.unique_tags_count)
     ]
     if metrics.added_count:
-        content.append(["New tags added:", metrics.added_count])
+        content.append(("New tags added:", metrics.added_count))
     if metrics.deleted_count:
-        content.append(["Old tags deleted:", metrics.deleted_count])
+        content.append(("Old tags deleted:", metrics.deleted_count))
     if metrics.delta:
         content.append(
-            [
+            (
                 "Tags delta:",
                 f"{metrics.delta} ({(metrics.delta_pct * 100):.2f}%)"
-            ]
+            )
         )
 
     if metrics.added_count:
