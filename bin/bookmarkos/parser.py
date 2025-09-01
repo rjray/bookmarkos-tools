@@ -50,8 +50,9 @@ class Bookmark(Node):
     """A simple class for representing a bookmark."""
 
     url: str = ""
-    visited: str = None
+    visited: str = ""
     tags: list[str] = field(default_factory=list)
+    notes: str = ""
 
     def fill(self, markup):
         """Fill in the Bookmark object with data from `markup`."""
@@ -62,8 +63,8 @@ class Bookmark(Node):
         self.url = attrib["HREF"]
         self.created = datestring(attrib["ADD_DATE"])
         self.updated = datestring(attrib["LAST_MODIFIED"])
-        self.visited = attrib.get("LAST_VISIT")
-        if self.visited is not None:
+        self.visited = attrib.get("LAST_VISIT", "")
+        if self.visited:
             self.visited = datestring(self.visited)
         self.tags.extend(attrib.get('TAGS', '').split(', '))
 
@@ -80,7 +81,7 @@ def parse_fragment(content: str):
     attr = match.group(1)
     text = match.group(2)
 
-    attrib = {}
+    attrib: dict[str, str] = {}
     for [key, value] in ATTRIB_RE.findall(attr):
         attrib[key] = value
 
@@ -114,12 +115,14 @@ def process_dt(line: str, queue: deque, folder: Folder, depth: int) -> None:
 def process_dd(line: str, folder: Folder) -> None:
     """Process a `<DD>` tag that follows a bookmark declaration."""
 
+    notes = None
     m = re.fullmatch(r'^\s+<DD>(.*)$', line)
-    notes = m.group(1)
+    if m:
+        notes = m.group(1)
 
     # Notes go with the most-recent Bookmark
     bookmark = folder.content[-1]
-    if isinstance(bookmark, Bookmark):
+    if isinstance(bookmark, Bookmark) and notes:
         bookmark.notes = notes
     else:
         raise ValueError('<DD> tag out of place')
