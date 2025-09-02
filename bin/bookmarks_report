@@ -2,22 +2,16 @@
 """A general script to produce a series of different reports on bookmarks data
 as transformed to JSON by the `bookmarks2json` tool."""
 
-# pylint: disable=wrong-import-position
-
 import argparse
 from bisect import bisect_left
 from dataclasses import dataclass, field
 from datetime import timedelta, datetime
 from operator import itemgetter
-import os
 import re
 import sys
 from typing import TextIO
 
-_root_dir = os.path.dirname(__file__)
-sys.path.append(_root_dir)
-
-from bookmarkos.json_io import read_json_data  # nopep8
+from bookmarkos.json_io import read_json_data
 
 
 @dataclass
