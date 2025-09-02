@@ -2,25 +2,11 @@
 """Convert the pseudo-HTML content of a bookmarks backup into a JSON structure
 that can be used for other purposes."""
 
-# pylint: disable=wrong-import-position
-
 import argparse
-from json import dump, JSONEncoder
-import os
 import sys
 
-_root_dir = os.path.dirname(__file__)
-sys.path.append(_root_dir)
-
-from bookmarkos.parser import parse_bookmarks  # nopep8
-
-
-class Encoder(JSONEncoder):
-    """A wrapper-style class around `JSONEncoder` to handle dict-based objects
-    in the structure being converted to JSON."""
-
-    def default(self, o):
-        return o.__dict__
+from bookmarkos.json_io import write_json_data, Encoder
+from bookmarkos.parser import parse_bookmarks
 
 
 def parse_command_line():
@@ -72,7 +58,7 @@ def main():
         json_args["sort_keys"] = True
 
     with ofh:
-        dump(root, ofh, **json_args)
+        write_json_data(root, ofh, json=json_args)
         ofh.write("\n")
 
     sys.exit(0)
