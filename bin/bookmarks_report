@@ -2,16 +2,22 @@
 """A general script to produce a series of different reports on bookmarks data
 as transformed to JSON by the `bookmarks2json` tool."""
 
+# pylint: disable=wrong-import-position
+
 import argparse
 from bisect import bisect_left
 from dataclasses import dataclass, field
 from datetime import timedelta, datetime
-import gzip
-import json
 from operator import itemgetter
+import os
 import re
 import sys
 from typing import TextIO
+
+_root_dir = os.path.dirname(__file__)
+sys.path.append(_root_dir)
+
+from bookmarkos.json_io import read_json_data  # nopep8
 
 
 @dataclass
@@ -66,16 +72,6 @@ class Metrics():
     all_bookmarks: list = field(default_factory=list)
 
 
-class Encoder(json.JSONEncoder):
-    """A simple encoder to make it possible to serialze Metrics objects."""
-
-    def default(self, o):
-        if isinstance(o, set):
-            return sorted(list(o))
-
-        return o.__dict__
-
-
 def parse_command_line() -> argparse.Namespace:
     """Declaration of command-line parameters and parsing of them."""
 
@@ -105,23 +101,6 @@ def datetime_from_filename(file: str) -> datetime:
     return datetime(
         int(match.group(1)), int(match.group(2)), int(match.group(3))
     )
-
-
-def read_json_data(file: str):
-    """Read the bookmarks data from the given file as JSON content. Handles
-    gzip-compressed content."""
-
-    if file.endswith(".gz"):
-        # Gzip'd content
-        fh = gzip.open(file, "rb")
-    else:
-        # Assume plain-text content
-        fh = open(file, "r", encoding="utf8")
-
-    with fh:
-        data = json.load(fh)
-
-    return data
 
 
 def average_size(metrics: SizeMetrics) -> float:
