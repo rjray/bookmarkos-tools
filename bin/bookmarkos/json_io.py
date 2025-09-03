@@ -18,11 +18,8 @@ def read_json_data(file: str | TextIO | TextIOWrapper) -> Any:
     """Read the JSON content from the given file. Handles gzip-compressed
     content."""
 
-    need_close = True
-
-    if isinstance(file, TextIO) or isinstance(file, TextIOWrapper):
+    if isinstance(file, (TextIO, TextIOWrapper)):
         fh = file
-        need_close = False
     elif file.endswith(".gz"):
         # Gzip'd content
         fh = GZ.open(file, "rb")
@@ -30,34 +27,38 @@ def read_json_data(file: str | TextIO | TextIOWrapper) -> Any:
         # Assume plain-text content
         fh = open(file, "r", encoding="utf8")
 
-    data = JS.load(fh)
-    if need_close:
-        fh.close()
+    with fh:
+        data = JS.load(fh)
 
     return data
 
 
 def write_json_data(
-    data: Any, file: str | TextIO | TextIOWrapper, *,
-    json: dict = {}, gzip: dict = {}
+    data: Any, file: str | TextIO | TextIOWrapper, *, json=None, gzip=None
 ) -> None:
     """Write the given data as JSON content. Handles gzip-compressing of
     content."""
 
-    need_close = True
+    json_args: dict[str, Any] = {
+        "cls": Encoder,
+        "ensure_ascii": False,
+    }
+    if json is not None:
+        json_args |= json
+    gzip_args: dict[str, Any] = {
+        "compresslevel": 9,
+    }
+    if gzip is not None:
+        gzip_args |= gzip
 
-    if isinstance(file, TextIO) or isinstance(file, TextIOWrapper):
+    if isinstance(file, (TextIO, TextIOWrapper)):
         fh = file
-        need_close = False
     elif file.endswith(".gz"):
         # Gzip'd output
-        fh = GZ.open(file, "wt", **gzip)
+        fh = GZ.open(file, "wt", **gzip_args)
     else:
         # Assume plain-text output
         fh = open(file, "w", encoding="utf8")
 
-    data = JS.dump(data, fh, **json)
-    if need_close:
-        fh.close()
-
-    return data
+    with fh:
+        JS.dump(data, fh, **json_args)
