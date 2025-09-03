@@ -14,20 +14,20 @@ def parse_command_line():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "-i", "--input", type=str, default="-",
-        help="File to read bookmarks from, or '-' to read from STDIN"
+        '-i', '--input', type=str, default='-',
+        help='File to read bookmarks from, or "-" to read from STDIN'
     )
     parser.add_argument(
-        "-o", "--output", type=str, default="-",
-        help="File to write JSON to, or '-' to write to STDOUT"
+        '-o', '--output', type=str, default='-',
+        help='File to write JSON to, or "-" to write to STDOUT'
     )
     parser.add_argument(
-        "-p", "--pretty", action="store_true",
-        help="Pretty-print the resulting JSON"
+        '-p', '--pretty', action='store_true',
+        help='Pretty-print the resulting JSON'
     )
     parser.add_argument(
-        "-s", "--sorted", action="store_true",
-        help="Sort JSON keys in output"
+        '-s', '--sorted', action='store_true',
+        help='Sort JSON keys in output'
     )
 
     return parser.parse_args()
@@ -38,31 +38,28 @@ def main():
 
     args = parse_command_line()
 
-    if args.input == "-":
+    if args.input == '-':
         root = parse_bookmarks(sys.stdin)
     else:
         root = parse_bookmarks(args.input)
 
-    if args.output == "-":
+    if args.output == '-':
         ofh = sys.stdout
     else:
-        ofh = open(args.output, encoding="utf8", mode="w")
+        ofh = open(args.output, encoding='utf8', mode='w')
 
     json_args = {
-        "cls": Encoder,
-        "ensure_ascii": False,
+        'cls': Encoder,
+        'ensure_ascii': False,
     }
     if args.pretty:
-        json_args["indent"] = 2
+        json_args['indent'] = 2
     if args.sorted:
-        json_args["sort_keys"] = True
+        json_args['sort_keys'] = True
 
     with ofh:
         write_json_data(root, ofh, json=json_args)
-        ofh.write("\n")
-
-    sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
