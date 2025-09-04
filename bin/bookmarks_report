@@ -216,7 +216,7 @@ def format_bookmark(bookmark: dict) -> str:
     """Format the bookmark as a hyperlink."""
 
     name = bookmark["name"]
-    created = datetime.fromisoformat(bookmark["created"]).astimezone()
+    created = datetime.fromtimestamp(bookmark["created"]).astimezone()
     timestamp = created.ctime()
 
     return f"{name} ({timestamp})"

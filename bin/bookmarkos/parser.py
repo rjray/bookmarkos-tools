@@ -7,7 +7,6 @@ captures."""
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from operator import attrgetter
 import re
 from typing import TextIO
@@ -22,8 +21,8 @@ class Node():
     """A base-class for Folder and Bookmark."""
 
     name: str = ""
-    created: str = ""
-    updated: str = ""
+    created: int = 0
+    updated: int = 0
 
 
 @dataclass
@@ -39,8 +38,8 @@ class Folder(Node):
             text, attrib = parse_fragment(markup)
 
             self.name = text
-            self.created = datestring(attrib["ADD_DATE"])
-            self.updated = datestring(attrib["LAST_MODIFIED"])
+            self.created = int(attrib["ADD_DATE"])
+            self.updated = int(attrib["LAST_MODIFIED"])
 
         return self
 
@@ -50,7 +49,7 @@ class Bookmark(Node):
     """A simple class for representing a bookmark."""
 
     url: str = ""
-    visited: str = ""
+    visited: int | None = None
     tags: list[str] = field(default_factory=list)
     notes: str = ""
 
@@ -61,11 +60,11 @@ class Bookmark(Node):
 
         self.name = text
         self.url = attrib["HREF"]
-        self.created = datestring(attrib["ADD_DATE"])
-        self.updated = datestring(attrib["LAST_MODIFIED"])
-        self.visited = attrib.get("LAST_VISIT", "")
-        if self.visited:
-            self.visited = datestring(self.visited)
+        self.created = int(attrib["ADD_DATE"])
+        self.updated = int(attrib["LAST_MODIFIED"])
+        visited = attrib.get("LAST_VISIT", None)
+        if visited is not None:
+            self.visited = int(visited)
         self.tags.extend(attrib.get('TAGS', '').split(', '))
 
         return self
@@ -159,12 +158,6 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
 
     folder.content.sort(key=attrgetter("name"))
     return folder
-
-
-def datestring(stamp: str):
-    """Turn the given UNIX-style time-stamp `stamp` into a `datetime` object
-    in the UTC timezone and return it converted to an ISO8601 format string."""
-    return datetime.fromtimestamp(int(stamp), tz=timezone.utc).isoformat()
 
 
 def parse_bookmarks(content: str | TextIO):
