@@ -1,0 +1,178 @@
+#!/usr/bin/env python
+"""A tool to "rebuild" weekly bookmark back-up files. Creates the JSON data
+representation of missing weeks, but does not (currently) create the HTML
+files."""
+
+from argparse import ArgumentParser, Namespace
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import re
+from typing import Any
+
+from bookmarkos.json_io import read_json_data, write_json_data
+
+
+TIME_DELTA = timedelta(days=7)
+
+
+def parse_command_line() -> Namespace:
+    """Handle command-line arguments."""
+    parser = ArgumentParser()
+
+    parser.add_argument(
+        '-i', '--input', type=str, required=True,
+        help='File to read bookmarks JSON from'
+    )
+    parser.add_argument(
+        '-o', '--output', type=str, default='bookmarks-%Y%m%d.json.gz',
+        help='File pattern to write JSON to, date filled in as needed'
+    )
+    parser.add_argument(
+        '-t', '--time', type=str, default='03:30:00',
+        help='The "magic" time that is used as a cut-off for each week'
+    )
+    parser.add_argument(
+        '--start', type=str,
+        help='The date (YYYY-MM-DD) at which to start working backwards'
+    )
+    parser.add_argument(
+        '-d', '--directory', type=str,
+        help='Directory in which to find and write bookmark files'
+    )
+    parser.add_argument(
+        '-p', '--pretty', action='store_true',
+        help='Pretty-print the resulting JSON'
+    )
+    parser.add_argument(
+        '-s', '--sorted', action='store_true',
+        help='Sort JSON keys in output'
+    )
+
+    return parser.parse_args()
+
+
+def get_start(file: str, start: str | None, clocktime: str) -> datetime:
+    """Determine the starting date-point from either `file` or arguments"""
+
+    # Start with getting the date, either from the `start` argument or from the
+    # file-name of the input data.
+    if start is not None:
+        m = re.search(r'^(\d\d\d\d)-?(\d\d)-?(\d\d)$', start)
+        if m:
+            year, month, day = map(int, m.group(1, 2, 3))
+        else:
+            raise ValueError('`start` argument format not understood')
+    else:
+        m = re.search(r'(\d\d\d\d)-?(\d\d)-?(\d\d)', file)
+        if m:
+            year, month, day = map(int, m.group(1, 2, 3))
+        else:
+            raise ValueError('No date in file name and no `start` parameter')
+
+    # Now determine the time within the day that closely represents when
+    # BookmarkOS generates the backup data. Unlike `start`, this parameter has
+    # a default value so we don't need to check for None.
+    m = re.search(r'^(\d{1,2}):?(\d\d):?(\d\d)$', clocktime)
+    if m:
+        hour, minutes, seconds = map(int, m.group(1, 2, 3))
+    else:
+        raise ValueError('Format of `time` parameter unknown')
+
+    return datetime(
+        year, month, day, hour=hour, minute=minutes, second=seconds
+    ).astimezone(timezone.utc)
+
+
+def count_bookmarks(data: dict):
+    """Count the number of bookmarks currently in the data. Use an iterative
+    BFS approach."""
+
+    count: int = 0
+    queue: list = data['content'][:]
+
+    while len(queue) > 0:
+        item = queue.pop(0)
+
+        if 'tags' in item:
+            count += 1
+        else:
+            queue += item['content']
+
+    return count
+
+
+def prune_bookmarks(data: dict, timestamp: int) -> None:
+    """Walk through the `data` tree and prune any bookmarks for which the
+    `created` property is greater than `timestamp`. Also remove any folders
+    that become empty along the way."""
+
+    keep: list = []
+    for item in data['content']:
+        if 'tags' in item:
+            # Bookmark. Keep it if it is older than `timestamp`.
+            if timestamp >= item['created']:
+                keep.append(item)
+        else:
+            # Folder. Recurse through it and remove it if it is now empty.
+            prune_bookmarks(item, timestamp)
+            if len(item['content']) > 0:
+                keep.append(item)
+
+    data['content'] = keep
+
+
+def create_dated_file(
+    data: dict, baseline: datetime, args: Namespace
+) -> tuple[str, int]:
+    """Use `baseline` to prune out newer bookmarks from `data`, then write the
+    resulting JSON to a file whose name is given by `args.output`. Return the
+    file name and the number of bookmarks saved for that date."""
+
+    output_file = baseline.strftime(args.output)
+    if args.directory is not None:
+        output_file = str(Path(args.directory) / output_file)
+
+    prune_bookmarks(data, int(baseline.timestamp()))
+    count = count_bookmarks(data)
+
+    if count:
+        json_args: dict[str, Any] = {}
+        if args.pretty:
+            json_args['indent'] = 2
+        if args.sorted:
+            json_args['sort_keys'] = True
+
+        write_json_data(data, output_file, json=json_args)
+
+    return (output_file, count)
+
+
+def main():
+    """Main loop."""
+
+    args = parse_command_line()
+
+    input_json = args.input
+    if args.directory is not None:
+        input_json = str(Path(args.directory) / input_json)
+    baseline = get_start(input_json, args.start, args.time)
+
+    json_data = read_json_data(input_json)
+
+    print(f"Starting with {count_bookmarks(json_data)} bookmarks.\n")
+
+    count = 0
+    while len(json_data['content']) > 0:
+        count += 1
+        baseline -= TIME_DELTA
+
+        new_file, bookmark_count = create_dated_file(json_data, baseline, args)
+        if bookmark_count:
+            print(f'Created {new_file} ({bookmark_count} bookmarks)')
+
+    pl = '' if count == 1 else 's'
+    print(f"\n{count} file{pl} created.")
+
+
+if __name__ == '__main__':
+    main()
