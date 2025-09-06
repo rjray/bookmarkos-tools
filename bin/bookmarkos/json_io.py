@@ -34,7 +34,8 @@ def read_json_data(file: str | TextIO | TextIOWrapper) -> Any:
 
 
 def write_json_data(
-    data: Any, file: str | TextIO | TextIOWrapper, *, json=None, gzip=None
+    data: Any, file: str | TextIO | TextIOWrapper, *,
+    json: dict[str, Any] | None = None, gzip: dict[str, Any] | None = None
 ) -> None:
     """Write the given data as JSON content. Handles gzip-compressing of
     content."""
