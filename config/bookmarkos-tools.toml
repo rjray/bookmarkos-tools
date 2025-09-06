@@ -1,0 +1,19 @@
+# Configuration for BookmarkOS tools
+
+# Global values that are used between multiple tools:
+
+directory = "~/Dropbox/Apps/Bookmark OS"
+file_pattern = "bookmarks-%Y%m%d"
+compression = true
+compresslevel = 9
+
+# Blocks for specific tools
+
+[bookmarks2json]
+
+[bookmarks_report]
+
+[bookmarks_report.email]
+
+to = "you@domain.com"
+from = "you@domain.com"
