@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from operator import attrgetter
 import re
-from typing import TextIO
+from typing import Self, TextIO
 
 
 EXTRACTION_RE = re.compile(r'^<\w+\s+(.*?)>(.*)</\w+>$')
@@ -20,7 +20,7 @@ ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
 class Node():
     """A base-class for Folder and Bookmark."""
 
-    name: str = ""
+    name: str = ''
     created: int = 0
     updated: int = 0
 
@@ -31,15 +31,15 @@ class Folder(Node):
 
     content: list[Node] = field(default_factory=list)
 
-    def fill(self, markup):
+    def fill(self: Self, markup: str) -> Self:
         """Fill in the Folder object with data from `markup`."""
 
         if len(markup) > 0:
             text, attrib = parse_fragment(markup)
 
             self.name = text
-            self.created = int(attrib["ADD_DATE"])
-            self.updated = int(attrib["LAST_MODIFIED"])
+            self.created = int(attrib['ADD_DATE'])
+            self.updated = int(attrib['LAST_MODIFIED'])
 
         return self
 
@@ -48,21 +48,21 @@ class Folder(Node):
 class Bookmark(Node):
     """A simple class for representing a bookmark."""
 
-    url: str = ""
+    url: str = ''
     visited: int | None = None
     tags: list[str] = field(default_factory=list)
-    notes: str = ""
+    notes: str = ''
 
-    def fill(self, markup):
+    def fill(self: Self, markup: str) -> Self:
         """Fill in the Bookmark object with data from `markup`."""
 
         text, attrib = parse_fragment(markup)
 
         self.name = text
-        self.url = attrib["HREF"]
-        self.created = int(attrib["ADD_DATE"])
-        self.updated = int(attrib["LAST_MODIFIED"])
-        visited = attrib.get("LAST_VISIT", None)
+        self.url = attrib['HREF']
+        self.created = int(attrib['ADD_DATE'])
+        self.updated = int(attrib['LAST_MODIFIED'])
+        visited = attrib.get('LAST_VISIT', None)
         if visited is not None:
             self.visited = int(visited)
         self.tags.extend(attrib.get('TAGS', '').split(', '))
@@ -70,12 +70,12 @@ class Bookmark(Node):
         return self
 
 
-def parse_fragment(content: str):
+def parse_fragment(content: str) -> tuple[str, dict[str, str]]:
     """Parse the pseudo-HTML data in `content`, returning the text content of
     the tag and a dict of any attributes."""
     match = EXTRACTION_RE.fullmatch(content)
     if match is None:
-        raise ValueError(f"Parse-error on content: {content}")
+        raise ValueError(f'Parse-error on content: {content}')
 
     attr = match.group(1)
     text = match.group(2)
@@ -95,7 +95,7 @@ def process_dt(line: str, queue: deque, folder: Folder, depth: int) -> None:
         markup = m.group(1)
         tag = m.group(2)
 
-        if tag == "A":
+        if tag == 'A':
             folder.content.append(Bookmark().fill(markup))
         else:
             next_line = queue.popleft()
@@ -134,33 +134,34 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
 
     folder = Folder().fill(text)
     padding = '    ' * depth
-    end_marker = f"{padding}</DL><p>"
+    end_marker = f'{padding}</DL><p>'
     line = None
 
     while len(queue) > 0:
         line = queue.popleft()
         if line == end_marker:
             break
-        if line == "":
+        # There shouldn't be any blank lines, but protect against it to be sure
+        if not line:
             continue
 
-        if "<DT>" in line:
+        if '<DT>' in line:
             process_dt(line, queue, folder, depth)
-        elif "<DD>" in line:
+        elif '<DD>' in line:
             process_dd(line, folder)
         else:
-            raise ValueError(f"Unknown content: {line}")
+            raise ValueError(f'Unknown content: {line}')
 
         line = None
 
     if line is None:
-        raise ValueError(f"Closing <DL> for folder {folder.name} not found")
+        raise ValueError(f'Closing <DL> for folder {folder.name} not found')
 
-    folder.content.sort(key=attrgetter("name"))
+    folder.content.sort(key=attrgetter('name'))
     return folder
 
 
-def parse_bookmarks(content: str | TextIO):
+def parse_bookmarks(content: str | TextIO) -> Folder:
     """Process the input in `content` into a `Folder` object that represents
     the full tree."""
 
@@ -170,14 +171,14 @@ def parse_bookmarks(content: str | TextIO):
     elif content.startswith('<!DOCTYPE'):
         data = content.split("\n")
     else:
-        with open(content, encoding="utf8") as ifh:
+        with open(content, encoding='utf8') as ifh:
             data = ifh.read().split("\n")
 
     # Create a queue, dropping the first 4 lines along the way
     lines = deque(data[4:])
-    if lines[0] != "<DL><p>":
-        raise ValueError("Missing expected opening <DL>")
+    if lines[0] != '<DL><p>':
+        raise ValueError('Missing expected opening <DL>')
 
     lines.popleft()
 
-    return process_folder("", 0, lines)
+    return process_folder('', 0, lines)
