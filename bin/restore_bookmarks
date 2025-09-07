@@ -9,7 +9,8 @@ from pathlib import Path
 import re
 from typing import Any
 
-from bookmarkos.json_io import read_plain_json, write_json_data
+from bookmarkos.json_io import read_bookmarks_json, write_json_data
+from bookmarkos.data.bookmarks import Node, Folder, Bookmark
 
 
 TIME_DELTA = timedelta(days=7)
@@ -83,46 +84,46 @@ def get_start(file: str, start: str | None, clocktime: str) -> datetime:
     ).astimezone(timezone.utc)
 
 
-def count_bookmarks(data: dict):
+def count_bookmarks(data: Folder):
     """Count the number of bookmarks currently in the data. Use an iterative
     BFS approach."""
 
     count: int = 0
-    queue: list = data['content'][:]
+    queue: list[Node] = data.content[:]
 
     while len(queue) > 0:
         item = queue.pop(0)
 
-        if 'tags' in item:
+        if isinstance(item, Bookmark):
             count += 1
-        else:
-            queue += item['content']
+        elif isinstance(item, Folder):
+            queue += item.content
 
     return count
 
 
-def prune_bookmarks(data: dict, timestamp: int) -> None:
+def prune_bookmarks(data: Folder, timestamp: int) -> None:
     """Walk through the `data` tree and prune any bookmarks for which the
     `created` property is greater than `timestamp`. Also remove any folders
     that become empty along the way."""
 
-    keep: list = []
-    for item in data['content']:
-        if 'tags' in item:
+    keep: list[Node] = []
+    for item in data.content:
+        if isinstance(item, Bookmark):
             # Bookmark. Keep it if it is older than `timestamp`.
-            if timestamp >= item['created']:
+            if timestamp >= item.created:
                 keep.append(item)
-        else:
+        elif isinstance(item, Folder):
             # Folder. Recurse through it and remove it if it is now empty.
             prune_bookmarks(item, timestamp)
-            if len(item['content']) > 0:
+            if len(item.content) > 0:
                 keep.append(item)
 
-    data['content'] = keep
+    data.content = keep
 
 
 def create_dated_file(
-    data: dict, baseline: datetime, args: Namespace
+    data: Folder, baseline: datetime, args: Namespace
 ) -> tuple[str, int]:
     """Use `baseline` to prune out newer bookmarks from `data`, then write the
     resulting JSON to a file whose name is given by `args.output`. Return the
@@ -157,16 +158,16 @@ def main():
         input_json = str(Path(args.directory) / input_json)
     baseline = get_start(input_json, args.start, args.time)
 
-    json_data = read_plain_json(input_json)
+    root = read_bookmarks_json(input_json)
 
-    print(f"Starting with {count_bookmarks(json_data)} bookmarks.\n")
+    print(f"Starting with {count_bookmarks(root)} bookmarks.\n")
 
     count = 0
-    while len(json_data['content']) > 0:
+    while len(root.content) > 0:
         count += 1
         baseline -= TIME_DELTA
 
-        new_file, bookmark_count = create_dated_file(json_data, baseline, args)
+        new_file, bookmark_count = create_dated_file(root, baseline, args)
         if bookmark_count:
             print(f'Created {new_file} ({bookmark_count} bookmarks)')
 
