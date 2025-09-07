@@ -1,93 +1,20 @@
-"""Abstraction of the parsing code, for use across multiple tools.
-
-Convert the pseudo-HTML content of a bookmarks backup into a JSON structure
+"""Convert the pseudo-HTML content of a bookmarks backup into a tree structure
 that can be used for other purposes. Because the syntax is not strict HTML it
 is parsed with a combination of string-matches and regular expressions with
 captures."""
 
-from collections import deque
-from dataclasses import dataclass, field
 from operator import attrgetter
 import re
-from typing import Self, TextIO
+from typing import TextIO
+
+from .data.bookmarks import Bookmark, Folder
 
 
 EXTRACTION_RE = re.compile(r'^<\w+\s+(.*?)>(.*)</\w+>$')
 ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
 
 
-@dataclass
-class Node():
-    """A base-class for Folder and Bookmark."""
-
-    name: str = ''
-    created: int = 0
-    updated: int = 0
-
-
-@dataclass
-class Folder(Node):
-    """A simple class for representing a folder."""
-
-    content: list[Node] = field(default_factory=list)
-
-    def fill(self: Self, markup: str) -> Self:
-        """Fill in the Folder object with data from `markup`."""
-
-        if len(markup) > 0:
-            text, attrib = parse_fragment(markup)
-
-            self.name = text
-            self.created = int(attrib['ADD_DATE'])
-            self.updated = int(attrib['LAST_MODIFIED'])
-
-        return self
-
-
-@dataclass
-class Bookmark(Node):
-    """A simple class for representing a bookmark."""
-
-    url: str = ''
-    visited: int | None = None
-    tags: list[str] = field(default_factory=list)
-    notes: str = ''
-
-    def fill(self: Self, markup: str) -> Self:
-        """Fill in the Bookmark object with data from `markup`."""
-
-        text, attrib = parse_fragment(markup)
-
-        self.name = text
-        self.url = attrib['HREF']
-        self.created = int(attrib['ADD_DATE'])
-        self.updated = int(attrib['LAST_MODIFIED'])
-        visited = attrib.get('LAST_VISIT', None)
-        if visited is not None:
-            self.visited = int(visited)
-        self.tags.extend(attrib.get('TAGS', '').split(', '))
-
-        return self
-
-
-def parse_fragment(content: str) -> tuple[str, dict[str, str]]:
-    """Parse the pseudo-HTML data in `content`, returning the text content of
-    the tag and a dict of any attributes."""
-    match = EXTRACTION_RE.fullmatch(content)
-    if match is None:
-        raise ValueError(f'Parse-error on content: {content}')
-
-    attr = match.group(1)
-    text = match.group(2)
-
-    attrib: dict[str, str] = {}
-    for [key, value] in ATTRIB_RE.findall(attr):
-        attrib[key] = value
-
-    return text, attrib
-
-
-def process_dt(line: str, queue: deque, folder: Folder, depth: int) -> None:
+def process_dt(line: str, queue: list[str], folder: Folder, depth: int) -> None:
     """Process a `<DT>` block."""
 
     m = re.fullmatch(r'^\s+<DT>(<(A|H3).*>)$', line)
@@ -98,7 +25,7 @@ def process_dt(line: str, queue: deque, folder: Folder, depth: int) -> None:
         if tag == 'A':
             folder.content.append(Bookmark().fill(markup))
         else:
-            next_line = queue.popleft()
+            next_line = queue.pop(0)
             if re.fullmatch(r'^\s+<DL><p>$', next_line):
                 folder.content.append(
                     process_folder(markup, depth + 1, queue)
@@ -127,7 +54,7 @@ def process_dd(line: str, folder: Folder) -> None:
         raise ValueError('<DD> tag out of place')
 
 
-def process_folder(text: str, depth: int, queue: deque) -> Folder:
+def process_folder(text: str, depth: int, queue: list[str]) -> Folder:
     """Handle the parsing and conversion of one folder. Called after the
     opening `<DL>` tag has been detected and proceeds until the closing tag
     is detected. Recurses into any sub-folders found."""
@@ -138,7 +65,7 @@ def process_folder(text: str, depth: int, queue: deque) -> Folder:
     line = None
 
     while len(queue) > 0:
-        line = queue.popleft()
+        line = queue.pop(0)
         if line == end_marker:
             break
         # There shouldn't be any blank lines, but protect against it to be sure
@@ -175,10 +102,10 @@ def parse_bookmarks(content: str | TextIO) -> Folder:
             data = ifh.read().split("\n")
 
     # Create a queue, dropping the first 4 lines along the way
-    lines = deque(data[4:])
+    lines = data[4:]
     if lines[0] != '<DL><p>':
         raise ValueError('Missing expected opening <DL>')
 
-    lines.popleft()
+    lines.pop(0)
 
     return process_folder('', 0, lines)
