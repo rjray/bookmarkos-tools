@@ -11,7 +11,7 @@ import re
 import sys
 from typing import TextIO
 
-from bookmarkos.json_io import read_json_data
+from bookmarkos.json_io import read_plain_json
 
 
 @dataclass
@@ -168,7 +168,7 @@ def get_metrics(week_file) -> Metrics:
     """Read the JSON data from `week_file` for a given week, then call
     `gather_metrics` to determine the metrics for the week."""
 
-    return gather_metrics(read_json_data(week_file))
+    return gather_metrics(read_plain_json(week_file))
 
 
 def finish_metrics(this_week: Metrics, last_week: Metrics):

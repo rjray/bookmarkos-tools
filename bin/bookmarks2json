@@ -5,7 +5,7 @@ that can be used for other purposes."""
 import argparse
 import sys
 
-from bookmarkos.json_io import write_json_data, Encoder
+from bookmarkos.json_io import write_json_data, BasicEncoder
 from bookmarkos.parser import parse_bookmarks
 
 
@@ -49,7 +49,7 @@ def main():
         ofh = open(args.output, encoding='utf8', mode='w')
 
     json_args = {
-        'cls': Encoder,
+        'cls': BasicEncoder,
         'ensure_ascii': False,
     }
     if args.pretty:

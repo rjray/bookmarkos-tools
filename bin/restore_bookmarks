@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from bookmarkos.json_io import read_json_data, write_json_data
+from bookmarkos.json_io import read_plain_json, write_json_data
 
 
 TIME_DELTA = timedelta(days=7)
@@ -157,7 +157,7 @@ def main():
         input_json = str(Path(args.directory) / input_json)
     baseline = get_start(input_json, args.start, args.time)
 
-    json_data = read_json_data(input_json)
+    json_data = read_plain_json(input_json)
 
     print(f"Starting with {count_bookmarks(json_data)} bookmarks.\n")
 
