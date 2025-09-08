@@ -14,6 +14,7 @@ from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
 
 
 TIME_DELTA = timedelta(weeks=1)
+"""How far back to step the date each iteration"""
 
 
 def parse_command_line() -> Namespace:
@@ -75,12 +76,14 @@ def get_start(file: str, start: str | None, clocktime: str) -> datetime:
     # a default value so we don't need to check for None.
     m = re.search(r'^(\d{1,2}):?(\d\d):?(\d\d)$', clocktime)
     if m:
-        hour, minutes, seconds = map(int, m.group(1, 2, 3))
+        hour, minute, second = map(int, m.group(1, 2, 3))
     else:
         raise ValueError('Format of `time` parameter unknown')
 
+    # Create the `datetime` instance from the six values we have. Return it as
+    # being set to the UTC timezone.
     return datetime(
-        year, month, day, hour=hour, minute=minutes, second=seconds
+        year, month, day, hour=hour, minute=minute, second=second
     ).astimezone(timezone.utc)
 
 
@@ -129,14 +132,19 @@ def create_dated_file(
     resulting JSON to a file whose name is given by `args.output`. Return the
     file name and the number of bookmarks saved for that date."""
 
+    # The value of `args.output` is expected to contain references to year,
+    # month, and day somewhere within.
     output_file = baseline.strftime(args.output)
+    # Tack on the specified directory if there is one.
     if args.directory is not None:
         output_file = str(Path(args.directory) / output_file)
 
+    # Trim and count.
     prune_bookmarks(data, int(baseline.timestamp()))
     count = count_bookmarks(data)
 
     if count:
+        # Unless this pass dropped all of the remaining bookmarks, write it.
         json_args: dict[str, Any] = {}
         if args.pretty:
             json_args['indent'] = 2
@@ -158,11 +166,13 @@ def main():
         input_json = str(Path(args.directory) / input_json)
     baseline = get_start(input_json, args.start, args.time)
 
+    # Read the specified file, returning a `Folder` instance.
     root = read_bookmarks_json(input_json)
 
     print(f"Starting with {count_bookmarks(root)} bookmarks.\n")
 
     count = 0
+    # Loop for as long as there are still bookmarks.
     while len(root.content) > 0:
         count += 1
         baseline -= TIME_DELTA

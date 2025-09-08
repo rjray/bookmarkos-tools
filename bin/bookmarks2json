@@ -5,12 +5,13 @@ that can be used for other purposes."""
 import argparse
 import sys
 
-from bookmarkos.json_io import write_json_data, BasicEncoder
+from bookmarkos.json_io import write_json_data
 from bookmarkos.parser import parse_bookmarks
 
 
 def parse_command_line():
     """Handle command-line arguments."""
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -38,20 +39,16 @@ def main():
 
     args = parse_command_line()
 
-    if args.input == '-':
-        root = parse_bookmarks(sys.stdin)
-    else:
-        root = parse_bookmarks(args.input)
+    # A value of "-" for --input means to read from STDIN. Otherwise, just pass
+    # the given name. If it ends in `.gz` it'll be read as compressed.
+    root = parse_bookmarks(sys.stdin if args.input == '-' else args.input)
 
-    if args.output == '-':
-        ofh = sys.stdout
-    else:
-        ofh = open(args.output, encoding='utf8', mode='w')
+    # An --output value of "-" means to write to STDOUT. Otherwise, just pass
+    # the given file-name. If it ends in `.gz` it'll be written as compressed.
+    ofh = sys.stdout if args.output == '-' else args.output
 
-    json_args = {
-        'cls': BasicEncoder,
-        'ensure_ascii': False,
-    }
+    # Apply either of the JSON-related arguments when creating the JSON output
+    json_args = {}
     if args.pretty:
         json_args['indent'] = 2
     if args.sorted:

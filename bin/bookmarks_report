@@ -40,6 +40,8 @@ def datetime_from_filename(file: str) -> datetime:
     if match is None:
         raise ValueError('File name does not contain date')
 
+    # Create the `datetime` from the year/month/day. Seems like I should be
+    # able to use `map` over `match.group(1, 2, 3)` here...?
     return datetime(
         int(match.group(1)), int(match.group(2)), int(match.group(3))
     )
@@ -60,6 +62,8 @@ def gather_metrics(week: Folder) -> Metrics:
 
     metrics = Metrics()
 
+    # Start the recursive gathering from `week` (the root folder) with a null
+    # folder-name element and the fresh `Metrics` object.
     _gather_metrics(week, [''], metrics)
 
     # Calculate averages
@@ -75,11 +79,14 @@ def gather_metrics(week: Folder) -> Metrics:
 def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
     """Recursively gather metrics at folder `node`."""
 
+    # Used to make unique identifier for the folder. THe "::" sequence is used
+    # because folder names can (and do) contain "/".
     folder = '::'.join(path)
 
+    # Get the size, then separate content into bookmarks and sub-folders.
+    folder_size = len(node.content)
     bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
     subfolders = [x for x in node.content if isinstance(x, Folder)]
-    folder_size = len(node.content)
 
     # Folder-oriented metrics
     metrics.folders.count += 1
@@ -107,6 +114,8 @@ def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
                 metrics.tags.sizes[tag] += 1
 
     for subfolder in subfolders:
+        # Seems the only way to prevent corruption of the `path` list is to
+        # explicitly copy it and append the new name.
         newpath = path.copy()
         newpath.append(subfolder.name)
         _gather_metrics(subfolder, newpath, metrics)
@@ -120,8 +129,8 @@ def get_metrics(week_file: str) -> Metrics:
 
 
 def finish_metrics(this_week: Metrics, last_week: Metrics):
-    """Calculate the additional values (differences, etc.) between the two sets
-    of metrics. These values only update the current-week's metrics."""
+    """Calculate the additional values (differences, etc.) between two sets of
+    metrics. These values only update the current-week's metrics."""
 
     # Additional values for bookmarks
     this_week.bookmarks.delta = \
@@ -163,11 +172,10 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
 def format_bookmark(bookmark: Bookmark) -> str:
     """Format the bookmark as a hyperlink."""
 
-    name = bookmark.name
     created = datetime.fromtimestamp(bookmark.created).astimezone()
     timestamp = created.ctime()
 
-    return f"{name} ({timestamp})"
+    return f"{bookmark.name} ({timestamp})"
 
 
 def output(lines: list[tuple[str, int | str]], fp: TextIO) -> None:

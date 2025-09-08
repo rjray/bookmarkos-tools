@@ -14,9 +14,13 @@ class BasicEncoder(JS.JSONEncoder):
     converts them to sorted lists."""
 
     def default(self, o):
+        """Default handler for anything that is an object."""
+
         if isinstance(o, set):
+            # A `Set` is encoded as a sorted list of the contents
             return sorted(list(o))
 
+        # All other objects return their `dict` representation.
         return o.__dict__
 
 
@@ -25,6 +29,9 @@ class BookmarksDecoder(JS.JSONDecoder):
     structure of `Folder` and `Bookmark` instances."""
 
     def __init__(self: Self, *args, **kwargs):
+        """Object constructor. Call the superclass initialization with all
+        arguments passed here, as well as a keyword argument setting up a hook
+        for decoding objects."""
         super().__init__(object_hook=self.object_transform, *args, **kwargs)
 
     def object_transform(self: Self, obj: dict[str, Any]):
@@ -47,8 +54,11 @@ def read_content(file: str | TextIO | TextIOWrapper) -> str:
     file name indicates compressed data)."""
 
     if isinstance(file, (TextIO, TextIOWrapper)):
-        fh = file
-    elif file.endswith('.gz'):
+        # A pre-existing file-handle. It will be read from directly and we
+        # return immediately (without closing the existing handle).
+        return file.read()
+
+    if file.endswith('.gz'):
         # Gzip'd content
         fh = GZ.open(file, 'rt')
     else:
@@ -89,6 +99,7 @@ def write_json_data(
     }
     if json is not None:
         json_args |= json
+
     gzip_args: dict[str, Any] = {
         'compresslevel': 9,
     }
@@ -96,8 +107,12 @@ def write_json_data(
         gzip_args |= gzip
 
     if isinstance(file, (TextIO, TextIOWrapper)):
-        fh = file
-    elif file.endswith('.gz'):
+        # An existing open file handle. It will be written to directly and we
+        # return immediately (without closing the existing handle).
+        JS.dump(data, file, **json_args)
+        return
+
+    if file.endswith('.gz'):
         # Gzip'd output
         fh = GZ.open(file, 'wt', **gzip_args)
     else:
