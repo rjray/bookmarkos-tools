@@ -4,67 +4,15 @@ as transformed to JSON by the `bookmarks2json` tool."""
 
 import argparse
 from bisect import bisect_left
-from dataclasses import dataclass, field
 from datetime import timedelta, datetime
-from operator import itemgetter
+from operator import attrgetter
 import re
 import sys
 from typing import TextIO
 
-from bookmarkos.json_io import read_plain_json
-
-
-@dataclass
-class CoreMetrics():
-    # pylint: disable=too-many-instance-attributes
-    """The core metrics that are gathered for bookmarks, tags, and folders."""
-
-    count: int = 0
-    items: set = field(default_factory=set)
-    added: set = field(default_factory=set)
-    added_count: int = 0
-    deleted: set = field(default_factory=set)
-    deleted_count: int = 0
-    delta: int = 0
-    delta_pct: float = 0.0
-
-
-@dataclass
-class SizeMetrics():
-    """Metrics related to size, used for folders and tags."""
-
-    sizes: dict = field(default_factory=dict)
-    min_size: int = sys.maxsize
-    max_size: int = 0
-    avg_size: float = 0.0
-
-
-@dataclass
-class FoldersMetrics(CoreMetrics, SizeMetrics):
-    """CoreMetrics+SizeMetrics, plus anything extra needed for folders."""
-
-
-@dataclass
-class BookmarksMetrics(CoreMetrics):
-    """CoreMetrics plus anything extra needed for bookmarks."""
-
-
-@dataclass
-class TagsMetrics(CoreMetrics, SizeMetrics):
-    """CoreMetrics+SizeMetrics, plus anything extra needed for tags."""
-
-    unique_tags_count: int = 0
-
-
-@dataclass
-class Metrics():
-    """This is a data-class for gathering the metrics of a week's data. It
-    combines `FoldersMetrics`, `BookmarksMetrics` and `TagsMetrics`."""
-
-    folders: FoldersMetrics = field(default_factory=FoldersMetrics)
-    bookmarks: BookmarksMetrics = field(default_factory=BookmarksMetrics)
-    tags: TagsMetrics = field(default_factory=TagsMetrics)
-    all_bookmarks: list = field(default_factory=list)
+from bookmarkos.data.bookmarks import Folder, Bookmark
+from bookmarkos.data.metrics import Metrics, SizeMetrics
+from bookmarkos.json_io import read_bookmarks_json
 
 
 def parse_command_line() -> argparse.Namespace:
@@ -107,7 +55,7 @@ def average_size(metrics: SizeMetrics) -> float:
     return total / count
 
 
-def gather_metrics(week) -> Metrics:
+def gather_metrics(week: Folder) -> Metrics:
     """Determine the metrics of the given week's data."""
 
     metrics = Metrics()
@@ -119,19 +67,19 @@ def gather_metrics(week) -> Metrics:
     metrics.folders.avg_size = average_size(metrics.folders)
 
     # Sort `all_bookmarks` by `created` field
-    metrics.all_bookmarks.sort(key=itemgetter('created'))
+    metrics.all_bookmarks.sort(key=attrgetter('created'))
 
     return metrics
 
 
-def _gather_metrics(node, path, metrics: Metrics) -> None:
+def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
     """Recursively gather metrics at folder `node`."""
 
     folder = '::'.join(path)
 
-    bookmarks = [x for x in node['content'] if 'tags' in x]
-    subfolders = [x for x in node['content'] if 'content' in x]
-    folder_size = len(node['content'])
+    bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
+    subfolders = [x for x in node.content if isinstance(x, Folder)]
+    folder_size = len(node.content)
 
     # Folder-oriented metrics
     metrics.folders.count += 1
@@ -143,15 +91,15 @@ def _gather_metrics(node, path, metrics: Metrics) -> None:
     # Process bookmarks, for bookmark-oriented and tag-oriented metrics
     metrics.bookmarks.count += len(bookmarks)
     for bookmark in bookmarks:
-        metrics.bookmarks.items.add(bookmark['created'])
+        metrics.bookmarks.items.add(bookmark.created)
         metrics.all_bookmarks.append(bookmark)
 
-        num_tags = len(bookmark['tags'])
+        num_tags = len(bookmark.tags)
         metrics.tags.count += num_tags
         metrics.tags.max_size = max(metrics.tags.max_size, num_tags)
         metrics.tags.min_size = min(metrics.tags.min_size, num_tags)
 
-        for tag in bookmark['tags']:
+        for tag in bookmark.tags:
             metrics.tags.items.add(tag)
             if tag not in metrics.tags.sizes:
                 metrics.tags.sizes[tag] = 1
@@ -160,15 +108,15 @@ def _gather_metrics(node, path, metrics: Metrics) -> None:
 
     for subfolder in subfolders:
         newpath = path.copy()
-        newpath.append(subfolder['name'])
+        newpath.append(subfolder.name)
         _gather_metrics(subfolder, newpath, metrics)
 
 
-def get_metrics(week_file) -> Metrics:
+def get_metrics(week_file: str) -> Metrics:
     """Read the JSON data from `week_file` for a given week, then call
     `gather_metrics` to determine the metrics for the week."""
 
-    return gather_metrics(read_plain_json(week_file))
+    return gather_metrics(read_bookmarks_json(week_file))
 
 
 def finish_metrics(this_week: Metrics, last_week: Metrics):
@@ -212,17 +160,17 @@ def finish_metrics(this_week: Metrics, last_week: Metrics):
     this_week.tags.deleted_count = len(this_week.tags.deleted)
 
 
-def format_bookmark(bookmark: dict) -> str:
+def format_bookmark(bookmark: Bookmark) -> str:
     """Format the bookmark as a hyperlink."""
 
-    name = bookmark['name']
-    created = datetime.fromtimestamp(bookmark['created']).astimezone()
+    name = bookmark.name
+    created = datetime.fromtimestamp(bookmark.created).astimezone()
     timestamp = created.ctime()
 
     return f"{name} ({timestamp})"
 
 
-def output(lines, fp: TextIO) -> None:
+def output(lines: list[tuple[str, int | str]], fp: TextIO) -> None:
     """Output the pairs provided."""
 
     for label, value in lines:
@@ -301,7 +249,7 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
     if metrics.added_count:
         added = []
         for item in sorted(list(metrics.added)):
-            pos = bisect_left(bookmarks, item, key=itemgetter('created'))
+            pos = bisect_left(bookmarks, item, key=attrgetter('created'))
             added.append(format_bookmark(bookmarks[pos]))
 
         content.append(('    Added bookmarks:', added[0]))
@@ -312,7 +260,7 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
         bookmarks2 = those.all_bookmarks
         deleted = []
         for item in sorted(list(metrics.deleted)):
-            pos = bisect_left(bookmarks2, item, key=itemgetter('created'))
+            pos = bisect_left(bookmarks2, item, key=attrgetter('created'))
             deleted.append(format_bookmark(bookmarks2[pos]))
 
         content.append(('    Deleted bookmarks:', deleted[0]))
