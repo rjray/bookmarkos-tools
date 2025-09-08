@@ -7,7 +7,8 @@ from operator import attrgetter
 import re
 from typing import TextIO
 
-from .data.bookmarks import Bookmark, Folder
+from bookmarkos.data.bookmarks import Bookmark, Folder
+from bookmarkos.json_io import read_content
 
 
 EXTRACTION_RE = re.compile(r'^<\w+\s+(.*?)>(.*)</\w+>$')
@@ -98,8 +99,7 @@ def parse_bookmarks(content: str | TextIO) -> Folder:
     elif content.startswith('<!DOCTYPE'):
         data = content.split("\n")
     else:
-        with open(content, encoding='utf8') as ifh:
-            data = ifh.read().split("\n")
+        data = read_content(content).split("\n")
 
     # Create a queue, dropping the first 4 lines along the way
     lines = data[4:]
