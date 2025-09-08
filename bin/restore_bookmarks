@@ -13,7 +13,7 @@ from bookmarkos.json_io import read_bookmarks_json, write_json_data
 from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
 
 
-TIME_DELTA = timedelta(days=7)
+TIME_DELTA = timedelta(weeks=1)
 
 
 def parse_command_line() -> Namespace:
