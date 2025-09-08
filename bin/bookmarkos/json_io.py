@@ -5,7 +5,7 @@ from io import TextIOWrapper
 import json as JS
 from typing import Any, Self, TextIO
 
-from .data.bookmarks import Folder, Bookmark
+from bookmarkos.data.bookmarks import Folder, Bookmark
 
 
 class BasicEncoder(JS.JSONEncoder):
@@ -48,12 +48,12 @@ def read_content(file: str | TextIO | TextIOWrapper) -> str:
 
     if isinstance(file, (TextIO, TextIOWrapper)):
         fh = file
-    elif file.endswith(".gz"):
+    elif file.endswith('.gz'):
         # Gzip'd content
-        fh = GZ.open(file, "rt")
+        fh = GZ.open(file, 'rt')
     else:
         # Assume plain-text content
-        fh = open(file, "r", encoding="utf8")
+        fh = open(file, 'r', encoding='utf8')
 
     with fh:
         content = fh.read()
@@ -84,25 +84,25 @@ def write_json_data(
     content."""
 
     json_args: dict[str, Any] = {
-        "cls": BasicEncoder,
-        "ensure_ascii": False,
+        'cls': BasicEncoder,
+        'ensure_ascii': False,
     }
     if json is not None:
         json_args |= json
     gzip_args: dict[str, Any] = {
-        "compresslevel": 9,
+        'compresslevel': 9,
     }
     if gzip is not None:
         gzip_args |= gzip
 
     if isinstance(file, (TextIO, TextIOWrapper)):
         fh = file
-    elif file.endswith(".gz"):
+    elif file.endswith('.gz'):
         # Gzip'd output
-        fh = GZ.open(file, "wt", **gzip_args)
+        fh = GZ.open(file, 'wt', **gzip_args)
     else:
         # Assume plain-text output
-        fh = open(file, "w", encoding="utf8")
+        fh = open(file, 'w', encoding='utf8')
 
     with fh:
         JS.dump(data, fh, **json_args)
