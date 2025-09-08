@@ -9,6 +9,11 @@ EXTRACTION_RE = re.compile(r'^<\w+\s+(.*?)>(.*)</\w+>$')
 ATTRIB_RE = re.compile(r'(\w+)="(.*?)"')
 
 
+"""A type-alias for the contents of a folder object, whose elements may be
+Bookmarks or other Folder objects."""
+type FolderContent = list['Folder | Bookmark']
+
+
 @dataclass
 class Node():
     """A base-class for Folder and Bookmark."""
@@ -22,7 +27,7 @@ class Node():
 class Folder(Node):
     """A simple class for representing a folder."""
 
-    content: list[Node] = field(default_factory=list)
+    content: FolderContent = field(default_factory=list)
 
     def fill(self: Self, markup: str) -> Self:
         """Fill in the Folder object with data from `markup`."""

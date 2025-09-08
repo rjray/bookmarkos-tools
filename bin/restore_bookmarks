@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 from bookmarkos.json_io import read_bookmarks_json, write_json_data
-from bookmarkos.data.bookmarks import Node, Folder, Bookmark
+from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
 
 
 TIME_DELTA = timedelta(days=7)
@@ -89,14 +89,14 @@ def count_bookmarks(data: Folder):
     BFS approach."""
 
     count: int = 0
-    queue: list[Node] = data.content[:]
+    queue: FolderContent = data.content[:]
 
     while len(queue) > 0:
         item = queue.pop(0)
 
         if isinstance(item, Bookmark):
             count += 1
-        elif isinstance(item, Folder):
+        else:
             queue += item.content
 
     return count
@@ -107,13 +107,13 @@ def prune_bookmarks(data: Folder, timestamp: int) -> None:
     `created` property is greater than `timestamp`. Also remove any folders
     that become empty along the way."""
 
-    keep: list[Node] = []
+    keep: FolderContent = []
     for item in data.content:
         if isinstance(item, Bookmark):
             # Bookmark. Keep it if it is older than `timestamp`.
             if timestamp >= item.created:
                 keep.append(item)
-        elif isinstance(item, Folder):
+        else:
             # Folder. Recurse through it and remove it if it is now empty.
             prune_bookmarks(item, timestamp)
             if len(item.content) > 0:
