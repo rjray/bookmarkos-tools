@@ -70,4 +70,3 @@ class Metrics():
     "Metrics for the bookmarks"
     tags: TagsMetrics = field(default_factory=TagsMetrics)
     "Metrics for the tags"
-    all_bookmarks: list = field(default_factory=list)

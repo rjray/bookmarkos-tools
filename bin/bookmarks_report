@@ -10,9 +10,10 @@ import re
 import sys
 from typing import TextIO
 
-from bookmarkos.data.bookmarks import Folder, Bookmark
-from bookmarkos.data.metrics import Metrics, SizeMetrics
+from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
+from bookmarkos.data.metrics import Metrics
 from bookmarkos.json_io import read_bookmarks_json
+from bookmarkos.metrics import gather_metrics, differentiate_metrics
 
 
 def parse_command_line() -> argparse.Namespace:
@@ -47,126 +48,23 @@ def datetime_from_filename(file: str) -> datetime:
     )
 
 
-def average_size(metrics: SizeMetrics) -> float:
-    """Calculate the average size for either `folders` or `tags`."""
+def all_bookmarks_sorted(data: Folder) -> list[Bookmark]:
+    """Create a list of all bookmarks in `data`, sorted by the creation time.
+    Uses an iterative BFS approach."""
 
-    sizes = metrics.sizes
-    count = len(sizes)
-    total = sum(sizes[x] for x in sizes.keys())
+    bookmarks: list[Bookmark] = []
+    queue: FolderContent = data.content[:]
 
-    return total / count
+    while len(queue) > 0:
+        item = queue.pop(0)
 
+        if isinstance(item, Bookmark):
+            bookmarks.append(item)
+        else:
+            queue += item.content
 
-def gather_metrics(week: Folder) -> Metrics:
-    """Determine the metrics of the given week's data."""
-
-    metrics = Metrics()
-
-    # Start the recursive gathering from `week` (the root folder) with a null
-    # folder-name element and the fresh `Metrics` object.
-    _gather_metrics(week, [''], metrics)
-
-    # Calculate averages
-    metrics.tags.avg_size = average_size(metrics.tags)
-    metrics.folders.avg_size = average_size(metrics.folders)
-
-    # Sort `all_bookmarks` by `created` field
-    metrics.all_bookmarks.sort(key=attrgetter('created'))
-
-    return metrics
-
-
-def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
-    """Recursively gather metrics at folder `node`."""
-
-    # Used to make unique identifier for the folder. THe "::" sequence is used
-    # because folder names can (and do) contain "/".
-    folder = '::'.join(path)
-
-    # Get the size, then separate content into bookmarks and sub-folders.
-    folder_size = len(node.content)
-    bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
-    subfolders = [x for x in node.content if isinstance(x, Folder)]
-
-    # Folder-oriented metrics
-    metrics.folders.count += 1
-    metrics.folders.items.add(folder)
-    metrics.folders.sizes[folder] = folder_size
-    metrics.folders.max_size = max(metrics.folders.max_size, folder_size)
-    metrics.folders.min_size = min(metrics.folders.min_size, folder_size)
-
-    # Process bookmarks, for bookmark-oriented and tag-oriented metrics
-    metrics.bookmarks.count += len(bookmarks)
-    for bookmark in bookmarks:
-        metrics.bookmarks.items.add(bookmark.created)
-        metrics.all_bookmarks.append(bookmark)
-
-        num_tags = len(bookmark.tags)
-        metrics.tags.count += num_tags
-        metrics.tags.max_size = max(metrics.tags.max_size, num_tags)
-        metrics.tags.min_size = min(metrics.tags.min_size, num_tags)
-
-        for tag in bookmark.tags:
-            metrics.tags.items.add(tag)
-            if tag not in metrics.tags.sizes:
-                metrics.tags.sizes[tag] = 1
-            else:
-                metrics.tags.sizes[tag] += 1
-
-    for subfolder in subfolders:
-        # Seems the only way to prevent corruption of the `path` list is to
-        # explicitly copy it and append the new name.
-        newpath = path.copy()
-        newpath.append(subfolder.name)
-        _gather_metrics(subfolder, newpath, metrics)
-
-
-def get_metrics(week_file: str) -> Metrics:
-    """Read the JSON data from `week_file` for a given week, then call
-    `gather_metrics` to determine the metrics for the week."""
-
-    return gather_metrics(read_bookmarks_json(week_file))
-
-
-def finish_metrics(this_week: Metrics, last_week: Metrics):
-    """Calculate the additional values (differences, etc.) between two sets of
-    metrics. These values only update the current-week's metrics."""
-
-    # Additional values for bookmarks
-    this_week.bookmarks.delta = \
-        this_week.bookmarks.count - last_week.bookmarks.count
-    this_week.bookmarks.delta_pct = \
-        this_week.bookmarks.delta / last_week.bookmarks.count
-    this_week.bookmarks.added = \
-        this_week.bookmarks.items - last_week.bookmarks.items
-    this_week.bookmarks.added_count = len(this_week.bookmarks.added)
-    this_week.bookmarks.deleted = \
-        last_week.bookmarks.items - this_week.bookmarks.items
-    this_week.bookmarks.deleted_count = len(this_week.bookmarks.deleted)
-
-    # Additional values for folders
-    this_week.folders.delta = this_week.folders.count - last_week.folders.count
-    this_week.folders.delta_pct = \
-        this_week.folders.delta / last_week.folders.count
-    this_week.folders.added = this_week.folders.items - last_week.folders.items
-    this_week.folders.added_count = len(this_week.folders.added)
-    this_week.folders.deleted = \
-        last_week.folders.items - this_week.folders.items
-    this_week.folders.deleted_count = len(this_week.folders.deleted)
-
-    # Additional values for tags
-    this_tags = this_week.tags.items
-    last_tags = last_week.tags.items
-    this_week.tags.unique_tags_count = len(this_tags)
-    last_week.tags.unique_tags_count = len(last_tags)
-    this_week.tags.delta = this_week.tags.unique_tags_count - \
-        last_week.tags.unique_tags_count
-    this_week.tags.delta_pct = \
-        this_week.tags.delta / last_week.tags.unique_tags_count
-    this_week.tags.added = this_tags - last_tags
-    this_week.tags.added_count = len(this_week.tags.added)
-    this_week.tags.deleted = last_tags - this_tags
-    this_week.tags.deleted_count = len(this_week.tags.deleted)
+    bookmarks.sort(key=attrgetter('created'))
+    return bookmarks
 
 
 def format_bookmark(bookmark: Bookmark) -> str:
@@ -233,11 +131,16 @@ def output_folders_weekly(these: Metrics, fp: TextIO) -> None:
     output(content, fp)
 
 
-def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
+def output_bookmarks_weekly(
+    these: Metrics,
+    these_bookmarks: Folder,
+    those_bookmarks: Folder,
+    fp: TextIO
+) -> None:
     """Weekly output for bookmark metrics."""
 
     metrics = these.bookmarks
-    bookmarks = these.all_bookmarks
+    bookmarks = all_bookmarks_sorted(these_bookmarks)
 
     content: list[tuple[str, int | str]] = [
         ('Total bookmarks:', metrics.count)
@@ -265,7 +168,7 @@ def output_bookmarks_weekly(these: Metrics, those: Metrics, fp: TextIO) -> None:
             content.append(('', item))
 
     if metrics.deleted_count:
-        bookmarks2 = those.all_bookmarks
+        bookmarks2 = all_bookmarks_sorted(those_bookmarks)
         deleted = []
         for item in sorted(list(metrics.deleted)):
             pos = bisect_left(bookmarks2, item, key=attrgetter('created'))
@@ -331,12 +234,19 @@ def output_tags_weekly(these: Metrics, fp: TextIO) -> None:
     output(content, fp)
 
 
-def output_weekly(this_week: Metrics, last_week: Metrics, fp: TextIO) -> None:
+def output_weekly(
+        this_week: Metrics,
+        this_week_bookmarks: Folder,
+        last_week_bookmarks: Folder,
+        fp: TextIO
+) -> None:
     """Emit the weekly report content."""
 
     output_folders_weekly(this_week, fp)
     print(file=fp)
-    output_bookmarks_weekly(this_week, last_week, fp)
+    output_bookmarks_weekly(
+        this_week, this_week_bookmarks, last_week_bookmarks, fp
+    )
     print(file=fp)
     output_tags_weekly(this_week, fp)
 
@@ -353,11 +263,15 @@ def weekly_report(args: argparse.Namespace, file: TextIO = sys.stdout):
     else:
         last_week_file, this_week_file = args.files[:2]
 
-    this_week = get_metrics(this_week_file)
-    last_week = get_metrics(last_week_file)
-    finish_metrics(this_week, last_week)
+    this_week_bookmarks = read_bookmarks_json(this_week_file)
+    this_week = gather_metrics(this_week_bookmarks)
+    last_week_bookmarks = read_bookmarks_json(last_week_file)
+    last_week = gather_metrics(last_week_bookmarks)
+    differentiate_metrics(this_week, last_week)
 
-    output_weekly(this_week, last_week, file)
+    output_weekly(
+        this_week, this_week_bookmarks, last_week_bookmarks, file
+    )
 
 
 def main():
@@ -366,8 +280,6 @@ def main():
     args = parse_command_line()
 
     weekly_report(args)
-
-    sys.exit(0)
 
 
 if __name__ == '__main__':
