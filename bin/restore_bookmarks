@@ -87,8 +87,8 @@ def get_start(file: str, start: str | None, clocktime: str) -> datetime:
     ).astimezone(timezone.utc)
 
 
-def count_bookmarks(data: Folder):
-    """Count the number of bookmarks currently in the data. Use an iterative
+def count_bookmarks(data: Folder) -> int:
+    """Count the number of bookmarks currently in the data. Uses an iterative
     BFS approach."""
 
     count: int = 0
