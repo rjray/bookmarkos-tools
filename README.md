@@ -4,13 +4,17 @@ Tools for managing and analyzing bookmarks saved via BookmarkOS.
 
 Just some simple tools (Python, mostly) for converting the backup files from
 [Bookmark OS](https://bookmarkos.com/) into data that I can do some basic
-stats/analysis on.
+metrics/analysis on.
 
 The weekly backup file comes in the old bookmarks format used by early-ish
 browsers. It is "sort of" HTML, with some tags left without closing
 counterparts and attributes on the `A` and `H3` tags that are not standard.
 Parsing it was thus a little challenging, since most HTML-parsing packages
 either tried to add missing things or just gave up altogether.
+
+_**Caveat**: While I am a seasoned programmer, I'm still fairly new to Python.
+There are almost certainly going to be things in here that could have been done
+better._
 
 ## Tools
 
@@ -29,29 +33,35 @@ Tools currently implemented are:
   corner cases it can't detect, but the data should be close to 99.5% or so.
 - The sh/bash script `bin/process_bookmarks` is a simple shell script run as a
   cron-job each Sunday shortly after BookmarkOS pushs the backup file to my
-  Dropbox folder. It runs `bookmarks2json` and gzip-compresses the dated copy
-  of the backup file and the resulting JSON file.
+  Dropbox directory. It runs `bookmarks2json` and gzip-compresses the dated
+  copy of the backup file and the resulting JSON file.
 
 ## Libraries
 
 As this has grown, some code has been refactored out into separate library
 files, both for sharing across tools and to keep things clean and readable.
-These are all in the `bookmarkos` folder, and the files are:
+These are all in the `bookmarkos` directory (and sub-directories), and the
+files are:
 
 - `json_io.py`: Functions to read and write the JSON content. Reading content
   looks to the file name to determine if it is compressed or not and reads it
   accordingly. Writing content also uses the file name (unless the `file`
   argument is an existing open filehandle) to decide whether to write compressed
   data. The `write_json_data` function also takes arguments that can be passed
-  to the Gzip compression and the JSON encoding. The `read_json_data` function
-  currently does not re-instantiate the data with the Python classes that the
-  parser uses, it just returns a tree structure of `dict` instances.
+  to the Gzip compression and the JSON encoding. The `read_plain_json` function
+  reads and decodes JSON data into a structure of Python `dict` objects. The
+  `read_bookmarks_json` function reads and decodes the JSON, but reinstantiates
+  it as `Folder` and `Bookmark` objects.
+- `metrics.py`: Encapsulation of the logic used to calculate all the metrics
+  gathered on bookmarks data.
 - `parser.py`: Encapsulation of the parsing logic used to take a bookmarks file
   and generate the corresponding tree of Python objects that can then be
-  serialized as JSON. The classes used to represent data (`Folder` and
-  `Bookmark`) have no real special logic yet, they are only different as a
-  means of distinguishing one type from the other without having an extra
-  property.
+  serialized as JSON.
+- `data`: This is a sub-directory for the modules that provide data classes.
+  - `bookmarks.py`: The data classes for bookmark representation (`Bookmark`
+    and `Folder`)
+  - `metrics.py`: The data classes for the metrics that are gathered
+    (`Metrics`, `BookmarksMetrics`, `FoldersMetrics`, `TagsMetrics`).
 
 ## Notes On File Structure, Data Structures, and Parsing
 
