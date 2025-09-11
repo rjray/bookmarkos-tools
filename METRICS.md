@@ -22,7 +22,7 @@ These are the metrics being gathered in the current implementation.
 11. Largest folder size
 12. Average folder size
 
-Elements 3-8 are only calculated when there is a second (basis) data-set to
+Items 3-8 are only calculated when there is a second (basis) data-set to
 compare the focus data-set with.
 
 ### Bookmarks Metrics
@@ -37,9 +37,8 @@ compare the focus data-set with.
 8. Delta as a percentage against the basis data
 9. Count of new bookmarks creation by date, within the period being measured
 
-Elements 3-8 are only calculated when there is a second (basis) data-set to
-compare the focus data-set with. Item 9 can be calculated based solely on the
-`created` attribute of the bookmarks.
+Items 3-9 are only calculated when there is a second (basis) data-set to
+compare the focus data-set with.
 
 ### Tags Metrics
 
@@ -58,7 +57,7 @@ compare the focus data-set with. Item 9 can be calculated based solely on the
 13. Average tag size/reach
 14. Count of distinct tags' usage by date, within the period being measured
 
-Elements 4-9 are only calculated when there is a second (basis) data-set to
+Items 4-9 and 14 are only calculated when there is a second (basis) data-set to
 compare the focus data-set with.
 
 ## Planned Metrics
