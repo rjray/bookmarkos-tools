@@ -55,45 +55,82 @@ def average_size(metrics: SizeMetrics) -> float:
     return total / count
 
 
-def differentiate_metrics(these: Metrics, those: Metrics):
+def differentiate_metrics(these: Metrics, those: Metrics | None = None) -> None:
     """Calculate the additional values (differences, etc.) between two sets of
-    metrics. These values only update the metrics of `these`."""
+    metrics. These values only update the metrics of `these`. If `those` is
+    `None`, then all differentials are set to represent initial data values."""
 
-    # Additional values for bookmarks
-    these.bookmarks.delta = \
-        these.bookmarks.count - those.bookmarks.count
-    these.bookmarks.delta_pct = \
-        these.bookmarks.delta / those.bookmarks.count
-    these.bookmarks.added = \
-        these.bookmarks.items - those.bookmarks.items
-    these.bookmarks.added_count = len(these.bookmarks.added)
-    these.bookmarks.deleted = \
-        those.bookmarks.items - these.bookmarks.items
-    these.bookmarks.deleted_count = len(these.bookmarks.deleted)
+    if those is not None:
+        # Additional values for bookmarks
+        bookmarks = these.bookmarks
+        bookmarks.delta = bookmarks.count - those.bookmarks.count
+        if those.bookmarks.count == 0:
+            bookmarks.delta_pct = 1.0
+        else:
+            bookmarks.delta_pct = bookmarks.delta / those.bookmarks.count
+        bookmarks.added = bookmarks.items - those.bookmarks.items
+        bookmarks.added_count = len(bookmarks.added)
+        bookmarks.deleted = those.bookmarks.items - bookmarks.items
+        bookmarks.deleted_count = len(bookmarks.deleted)
 
-    # Additional values for folders
-    these.folders.delta = these.folders.count - those.folders.count
-    these.folders.delta_pct = \
-        these.folders.delta / those.folders.count
-    these.folders.added = these.folders.items - those.folders.items
-    these.folders.added_count = len(these.folders.added)
-    these.folders.deleted = \
-        those.folders.items - these.folders.items
-    these.folders.deleted_count = len(these.folders.deleted)
+        # Additional values for folders
+        folders = these.folders
+        folders.delta = folders.count - those.folders.count
+        if those.folders.count == 0:
+            folders.delta_pct = 1.0
+        else:
+            folders.delta_pct = folders.delta / those.folders.count
+        folders.added = folders.items - those.folders.items
+        folders.added_count = len(folders.added)
+        folders.deleted = those.folders.items - folders.items
+        folders.deleted_count = len(folders.deleted)
 
-    # Additional values for tags
-    this_tags = these.tags.items
-    last_tags = those.tags.items
-    these.tags.unique_tags_count = len(this_tags)
-    those.tags.unique_tags_count = len(last_tags)
-    these.tags.delta = these.tags.unique_tags_count - \
-        those.tags.unique_tags_count
-    these.tags.delta_pct = \
-        these.tags.delta / those.tags.unique_tags_count
-    these.tags.added = this_tags - last_tags
-    these.tags.added_count = len(these.tags.added)
-    these.tags.deleted = last_tags - this_tags
-    these.tags.deleted_count = len(these.tags.deleted)
+        # Additional values for tags
+        tags = these.tags
+        this_tags = tags.items
+        last_tags = those.tags.items
+        len_this = len(this_tags)
+        len_last = len(last_tags)
+        tags.delta = len_this - len_last
+        if len_last == 0:
+            tags.delta_pct = 0.0 if len_this == 0 else 1.0
+        else:
+            tags.delta_pct = tags.delta / len_last
+        tags.added = this_tags - last_tags
+        tags.added_count = len(tags.added)
+        tags.deleted = last_tags - this_tags
+        tags.deleted_count = len(tags.deleted)
+    else:
+        # If this is called with no value for `those`, then this represents
+        # the very initial bookmarks set. Assign the values appropriately.
+
+        # Bookmarks
+        bookmarks = these.bookmarks
+        bookmarks.delta = bookmarks.count
+        bookmarks.delta_pct = 1.0 if bookmarks.count != 0 else 0.0
+        bookmarks.added = bookmarks.items.copy()
+        bookmarks.added_count = bookmarks.count
+        bookmarks.deleted = set()
+        bookmarks.deleted_count = 0
+
+        # Folders
+        folders = these.folders
+        folders.delta = folders.count
+        folders.delta_pct = 1.0 if folders.count != 0 else 0.0
+        folders.added = folders.items.copy()
+        folders.added_count = folders.count
+        folders.deleted = set()
+        folders.deleted_count = 0
+
+        # Tags
+        tags = these.tags
+        this_tags = tags.items
+        tags.delta = len(this_tags)
+        tags.delta_pct = 1.0 if tags.delta != 0 else 0.0
+        tags.added = this_tags.copy()
+        tags.added_count = len(this_tags)
+        tags.deleted = set()
+        tags.deleted_count = 0
 
 
 def gather_metrics(week: Folder) -> Metrics:
@@ -108,5 +145,8 @@ def gather_metrics(week: Folder) -> Metrics:
     # Calculate averages
     metrics.tags.avg_size = average_size(metrics.tags)
     metrics.folders.avg_size = average_size(metrics.folders)
+
+    # Calculate uniqueness of tags
+    metrics.tags.unique_tags_count = len(metrics.tags.items)
 
     return metrics
