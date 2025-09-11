@@ -37,6 +37,10 @@ compare the focus data-set with.
 8. Delta as a percentage against the basis data
 9. Count of new bookmarks creation by date, within the period being measured
 
+Elements 3-8 are only calculated when there is a second (basis) data-set to
+compare the focus data-set with. Item 9 can be calculated based solely on the
+`created` attribute of the bookmarks.
+
 ### Tags Metrics
 
 1. Total count (non-unique)
@@ -63,12 +67,15 @@ These are the metrics that are planned for addition to the above.
 
 ### Folders Plans
 
-1. Note time each folder appears
-2. Track the number of bookmarks added to a folder over time
+1. Time each folder appears
+2. Number of bookmarks added to a folder over time
+3. Top N folders by size (bookmarks only?)
+4. Bottom N folders by size (bookmarks only?)
+5. Fan-out: max depth, max breadth
 
 ### Bookmarks Plans
 
-1. Note/trace movement of a bookmark between folders
+1. Trace movement of bookmarks between folders
 2. Day-based trends in numbers of bookmarks created
 3. Time-of-day-based trends in creation
 
