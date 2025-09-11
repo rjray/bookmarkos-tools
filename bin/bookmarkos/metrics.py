@@ -35,10 +35,7 @@ def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
 
         for tag in bookmark.tags:
             metrics.tags.items.add(tag)
-            if tag not in metrics.tags.sizes:
-                metrics.tags.sizes[tag] = 1
-            else:
-                metrics.tags.sizes[tag] += 1
+            metrics.tags.sizes[tag] += 1
 
     for subfolder in subfolders:
         # Seems the only way to prevent corruption of the `path` list is to

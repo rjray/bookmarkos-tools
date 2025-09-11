@@ -1,5 +1,6 @@
 """The data classes used for representing various metrics data."""
 
+from collections import Counter
 from dataclasses import dataclass, field
 import sys
 
@@ -11,14 +12,14 @@ class CoreMetrics():
 
     count: int = 0
     "The total count of the type"
-    items: set = field(default_factory=set)
-    "A `Set` holding all the identifiers of the type"
-    added: set = field(default_factory=set)
-    "A `Set` holding all the identifiers of those added in this dataset"
+    items: set[int | str] = field(default_factory=set)
+    "A `set` object holding all the identifiers of the type"
+    added: set[int | str] = field(default_factory=set)
+    "A `set` object holding all the identifiers added in this dataset"
     added_count: int = 0
     "The count of added elements"
-    deleted: set = field(default_factory=set)
-    "A `Set` holding all the identifiers of those deleted in this dataset"
+    deleted: set[int | str] = field(default_factory=set)
+    "A `set` object holding all the identifiers deleted in this dataset"
     deleted_count: int = 0
     "The count of deleted elements"
     delta: int = 0
@@ -31,7 +32,7 @@ class CoreMetrics():
 class SizeMetrics():
     """Metrics related to size, used for folders and tags."""
 
-    sizes: dict = field(default_factory=dict)
+    sizes: Counter[str] = field(default_factory=Counter)
     "Size of each entity, indexed by name/identifier"
     min_size: int = sys.maxsize
     "Size of the smallest entity"
@@ -50,6 +51,11 @@ class FoldersMetrics(CoreMetrics, SizeMetrics):
 class BookmarksMetrics(CoreMetrics):
     """CoreMetrics plus anything extra needed for bookmarks."""
 
+    new_bookmarks_by_date: dict[str, list[int]] = field(
+        default_factory=dict, compare=False, repr=False
+    )
+    "New bookmarks, indexed by their date-added timestamp"
+
 
 @dataclass
 class TagsMetrics(CoreMetrics, SizeMetrics):
@@ -57,6 +63,10 @@ class TagsMetrics(CoreMetrics, SizeMetrics):
 
     unique_tags_count: int = 0
     "A count of the unique tags, separate from the overall tag-count"
+    tags_by_date: dict[str, Counter[str]] = field(
+        default_factory=dict, compare=False, repr=False
+    )
+    "Tags on new bookmarks, indexed by the date-added timestamp of the bookmark"
 
 
 @dataclass
