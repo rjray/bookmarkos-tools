@@ -32,6 +32,7 @@ class Folder(Node):
     """A simple class for representing a folder."""
 
     content: FolderContent = field(default_factory=list)
+    "The contents of this folder"
 
     def fill(self: Self, markup: str) -> Self:
         """Fill in the Folder object with data from `markup`."""
