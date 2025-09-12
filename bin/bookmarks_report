@@ -13,7 +13,8 @@ from typing import TextIO
 from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
 from bookmarkos.data.metrics import Metrics
 from bookmarkos.json_io import read_bookmarks_json
-from bookmarkos.metrics import gather_metrics, differentiate_metrics
+from bookmarkos.metrics import gather_metrics, differentiate_metrics, \
+    all_bookmarks_sorted
 
 
 def parse_command_line() -> argparse.Namespace:
@@ -46,25 +47,6 @@ def datetime_from_filename(file: str) -> datetime:
     return datetime(
         int(match.group(1)), int(match.group(2)), int(match.group(3))
     )
-
-
-def all_bookmarks_sorted(data: Folder) -> list[Bookmark]:
-    """Create a list of all bookmarks in `data`, sorted by the creation time.
-    Uses an iterative BFS approach."""
-
-    bookmarks: list[Bookmark] = []
-    queue: FolderContent = data.content[:]
-
-    while len(queue) > 0:
-        item = queue.pop(0)
-
-        if isinstance(item, Bookmark):
-            bookmarks.append(item)
-        else:
-            queue += item.content
-
-    bookmarks.sort(key=attrgetter('created'))
-    return bookmarks
 
 
 def format_bookmark(bookmark: Bookmark) -> str:
@@ -159,15 +141,17 @@ def output_bookmarks_weekly(
 
     if metrics.added_count:
         added = []
-        for item in sorted(list(metrics.added)):
-            pos = bisect_left(bookmarks, item, key=attrgetter('created'))
-            added.append(format_bookmark(bookmarks[pos]))
+        for bookmark in metrics.new_bookmarks:
+            added.append(format_bookmark(bookmark))
 
         content.append(('    Added bookmarks:', added[0]))
         for item in added[1:]:
             content.append(('', item))
 
     if metrics.deleted_count:
+        # We tracked the full objects for added bookmarks, but only the IDs
+        # (creation timestamps) for deleted bookmarks. So we need to look them
+        # up in the previous week's data.
         bookmarks2 = all_bookmarks_sorted(those_bookmarks)
         deleted = []
         for item in sorted(list(metrics.deleted)):
@@ -267,7 +251,7 @@ def weekly_report(args: argparse.Namespace, file: TextIO = sys.stdout):
     this_week = gather_metrics(this_week_bookmarks)
     last_week_bookmarks = read_bookmarks_json(last_week_file)
     last_week = gather_metrics(last_week_bookmarks)
-    differentiate_metrics(this_week, last_week)
+    differentiate_metrics(this_week_bookmarks, this_week, last_week)
 
     output_weekly(
         this_week, this_week_bookmarks, last_week_bookmarks, file

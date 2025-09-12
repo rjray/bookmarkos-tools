@@ -1,6 +1,11 @@
 """Home of all metrics-related processing and calculation, etc."""
 
-from bookmarkos.data.bookmarks import Folder, Bookmark
+from bisect import bisect_left
+from collections import Counter
+from datetime import datetime, timezone
+from operator import attrgetter
+
+from bookmarkos.data.bookmarks import Folder, Bookmark, FolderContent
 from bookmarkos.data.metrics import Metrics, SizeMetrics
 
 
@@ -55,7 +60,74 @@ def average_size(metrics: SizeMetrics) -> float:
     return total / count
 
 
-def differentiate_metrics(these: Metrics, those: Metrics | None = None) -> None:
+def new_bookmarks_by_date(metrics: Metrics) -> dict[str, list[int]]:
+    """Return a dictionary of the new bookmarks, indexed by their date-added
+    timestamp (YYYY-MM-DD)."""
+
+    by_date: dict[str, list[int]] = {}
+
+    for bookmark_id in metrics.bookmarks.items:
+        # Convert the bookmark ID (which is a UNIX timestamp) into a date
+        # string of the form "YYYY-MM-DD".
+
+        dt = datetime.fromtimestamp(bookmark_id).astimezone(timezone.utc)
+        date_str = dt.strftime('%Y-%m-%d')
+
+        if date_str not in by_date:
+            by_date[date_str] = []
+        by_date[date_str].append(bookmark_id)
+
+    return by_date
+
+
+def tags_usage_by_date(metrics: Metrics) -> dict[str, Counter[str]]:
+    """Return a dictionary of tags used on new bookmarks, indexed by the
+    date-added timestamp (YYYY-MM-DD) of the bookmark. The `bookmarks` argument
+    is the root folder of the dataset, used for referencing the new bookmarks
+    for their tags."""
+
+    by_date: dict[str, Counter[str]] = {}
+
+    for bookmark in metrics.bookmarks.new_bookmarks:
+        # Convert the bookmark ID (which is a UNIX timestamp) into a date
+        # string of the form "YYYY-MM-DD".
+
+        dt = datetime.fromtimestamp(bookmark.created).astimezone(timezone.utc)
+        date_str = dt.strftime('%Y-%m-%d')
+
+        if date_str not in by_date:
+            by_date[date_str] = Counter()
+
+        for tag in bookmark.tags:
+            by_date[date_str][tag] += 1
+
+    return by_date
+
+
+def all_bookmarks_sorted(data: Folder) -> list[Bookmark]:
+    """Create a list of all bookmarks in `data`, sorted by the creation time.
+    Uses an iterative BFS approach."""
+
+    bookmarks: list[Bookmark] = []
+    queue: FolderContent = data.content[:]
+
+    while len(queue) > 0:
+        item = queue.pop(0)
+
+        if isinstance(item, Bookmark):
+            bookmarks.append(item)
+        else:
+            queue += item.content
+
+    bookmarks.sort(key=attrgetter('created'))
+    return bookmarks
+
+
+def differentiate_metrics(
+        this_week: Folder,
+        these: Metrics,
+        those: Metrics | None = None
+) -> None:
     """Calculate the additional values (differences, etc.) between two sets of
     metrics. These values only update the metrics of `these`. If `those` is
     `None`, then all differentials are set to represent initial data values."""
@@ -132,6 +204,19 @@ def differentiate_metrics(these: Metrics, those: Metrics | None = None) -> None:
         tags.deleted = set()
         tags.deleted_count = 0
 
+    # Generate some of the aggregrated values.
+
+    # Bookmark objects for the new bookmarks
+    all_bookmarks = all_bookmarks_sorted(this_week)
+    these.bookmarks.new_bookmarks = []
+    for id in sorted(these.bookmarks.added):
+        pos = bisect_left(all_bookmarks, id, key=attrgetter('created'))
+        these.bookmarks.new_bookmarks.append(all_bookmarks[pos])
+    # New bookmarks by date
+    these.bookmarks.new_bookmarks_by_date = new_bookmarks_by_date(these)
+    # New bookmarks' tag usage by date
+    these.tags.tags_by_date = tags_usage_by_date(these)
+
 
 def gather_metrics(week: Folder) -> Metrics:
     """Determine the metrics of the given week's data."""
@@ -142,11 +227,11 @@ def gather_metrics(week: Folder) -> Metrics:
     # folder-name element and the fresh `Metrics` object.
     _gather_metrics(week, [''], metrics)
 
-    # Calculate averages
+    # Averages
     metrics.tags.avg_size = average_size(metrics.tags)
     metrics.folders.avg_size = average_size(metrics.folders)
 
-    # Calculate uniqueness of tags
+    # Uniqueness of tags
     metrics.tags.unique_tags_count = len(metrics.tags.items)
 
     return metrics

@@ -4,6 +4,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 import sys
 
+from bookmarkos.data.bookmarks import Bookmark
+
 
 @dataclass
 class CoreMetrics():
@@ -12,13 +14,13 @@ class CoreMetrics():
 
     count: int = 0
     "The total count of the type"
-    items: set[int | str] = field(default_factory=set)
+    items: set = field(default_factory=set)
     "A `set` object holding all the identifiers of the type"
-    added: set[int | str] = field(default_factory=set)
+    added: set = field(default_factory=set)
     "A `set` object holding all the identifiers added in this dataset"
     added_count: int = 0
     "The count of added elements"
-    deleted: set[int | str] = field(default_factory=set)
+    deleted: set = field(default_factory=set)
     "A `set` object holding all the identifiers deleted in this dataset"
     deleted_count: int = 0
     "The count of deleted elements"
@@ -51,6 +53,10 @@ class FoldersMetrics(CoreMetrics, SizeMetrics):
 class BookmarksMetrics(CoreMetrics):
     """CoreMetrics plus anything extra needed for bookmarks."""
 
+    new_bookmarks: list[Bookmark] = field(
+        default_factory=list, compare=False, repr=False
+    )
+    "New bookmarks added in this dataset"
     new_bookmarks_by_date: dict[str, list[int]] = field(
         default_factory=dict, compare=False, repr=False
     )
