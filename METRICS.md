@@ -69,10 +69,10 @@ These are the metrics that are planned for addition to the above.
 
 ### Folders Plans
 
-1. Time each folder appears
+1. Time each folder appears (except root)
 2. Number of bookmarks added to a folder over time
-3. Top N folders by size (bookmarks only?)
-4. Bottom N folders by size (bookmarks only?)
+3. Top 5 folders by size (bookmarks only?)
+4. Bottom 5 folders by size (bookmarks only?)
 5. Fan-out: max depth, max breadth
 
 ### Bookmarks Plans
@@ -86,7 +86,7 @@ These are the metrics that are planned for addition to the above.
 1. Time each tag was first used
 2. How recently a tag has been used
 3. Some sort of clustering analysis of "bursts" of usage of a given tag
-4. Top N tags by usage/reach
-5. Bottom N tags by usage/reach
+4. Top 25 tags by usage/reach
+5. Bottom 25 tags by usage/reach
 6. Identification of groups of tags with low Levenshtein distance
-7. Top N tag relations
+7. Top 25 tag relations
