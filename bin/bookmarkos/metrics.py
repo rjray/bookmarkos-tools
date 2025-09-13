@@ -66,11 +66,11 @@ def new_bookmarks_by_date(metrics: Metrics) -> dict[str, list[int]]:
 
     by_date: dict[str, list[int]] = {}
 
-    for bookmark_id in metrics.bookmarks.items:
+    for bookmark_id in sorted(metrics.bookmarks.added):
         # Convert the bookmark ID (which is a UNIX timestamp) into a date
         # string of the form "YYYY-MM-DD".
 
-        dt = datetime.fromtimestamp(bookmark_id).astimezone(timezone.utc)
+        dt = datetime.fromtimestamp(bookmark_id, tz=timezone.utc)
         date_str = dt.strftime('%Y-%m-%d')
 
         if date_str not in by_date:
@@ -209,8 +209,10 @@ def differentiate_metrics(
     # Bookmark objects for the new bookmarks
     all_bookmarks = all_bookmarks_sorted(this_week)
     these.bookmarks.new_bookmarks = []
-    for id in sorted(these.bookmarks.added):
-        pos = bisect_left(all_bookmarks, id, key=attrgetter('created'))
+    for bookmark_id in sorted(these.bookmarks.added):
+        pos = bisect_left(
+            all_bookmarks, bookmark_id, key=attrgetter('created')
+        )
         these.bookmarks.new_bookmarks.append(all_bookmarks[pos])
     # New bookmarks by date
     these.bookmarks.new_bookmarks_by_date = new_bookmarks_by_date(these)
