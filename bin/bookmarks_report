@@ -10,7 +10,7 @@ import re
 import sys
 from typing import TextIO
 
-from bookmarkos.data.bookmarks import FolderContent, Folder, Bookmark
+from bookmarkos.data.bookmarks import Folder, Bookmark
 from bookmarkos.data.metrics import Metrics
 from bookmarkos.json_io import read_bookmarks_json
 from bookmarkos.metrics import gather_metrics, differentiate_metrics, \
@@ -115,14 +115,12 @@ def output_folders_weekly(these: Metrics, fp: TextIO) -> None:
 
 def output_bookmarks_weekly(
     these: Metrics,
-    these_bookmarks: Folder,
     those_bookmarks: Folder,
     fp: TextIO
 ) -> None:
     """Weekly output for bookmark metrics."""
 
     metrics = these.bookmarks
-    bookmarks = all_bookmarks_sorted(these_bookmarks)
 
     content: list[tuple[str, int | str]] = [
         ('Total bookmarks:', metrics.count)
@@ -220,7 +218,6 @@ def output_tags_weekly(these: Metrics, fp: TextIO) -> None:
 
 def output_weekly(
         this_week: Metrics,
-        this_week_bookmarks: Folder,
         last_week_bookmarks: Folder,
         fp: TextIO
 ) -> None:
@@ -228,9 +225,7 @@ def output_weekly(
 
     output_folders_weekly(this_week, fp)
     print(file=fp)
-    output_bookmarks_weekly(
-        this_week, this_week_bookmarks, last_week_bookmarks, fp
-    )
+    output_bookmarks_weekly(this_week, last_week_bookmarks, fp)
     print(file=fp)
     output_tags_weekly(this_week, fp)
 
@@ -253,9 +248,7 @@ def weekly_report(args: argparse.Namespace, file: TextIO = sys.stdout):
     last_week = gather_metrics(last_week_bookmarks)
     differentiate_metrics(this_week_bookmarks, this_week, last_week)
 
-    output_weekly(
-        this_week, this_week_bookmarks, last_week_bookmarks, file
-    )
+    output_weekly(this_week, last_week_bookmarks, file)
 
 
 def main():
