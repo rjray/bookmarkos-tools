@@ -3,18 +3,70 @@
 from bisect import bisect_left
 from collections import Counter
 from datetime import datetime, timezone
-from operator import attrgetter
+from itertools import groupby
+from operator import attrgetter, itemgetter
 
 from bookmarkos.data.bookmarks import Folder, Bookmark, FolderContent
 from bookmarkos.data.metrics import Metrics, SizeMetrics
 
 
+def get_largest_and_smallest(
+        sizes: Counter[str], n: int
+) -> tuple[list[tuple[int, int, list[str]]], list[tuple[int, int, list[str]]]]:
+    """Return the N largest and smallest items from the `sizes` Counter object,
+    as two lists of (name, size, rank) tuples. Ties are handled, and ties may
+    cause the displayed lists to be longer than N."""
+
+    largest: list[tuple[int, int, list[str]]] = []
+    smallest: list[tuple[int, int, list[str]]] = []
+
+    # Sort the elements by size.
+    sorted_sizes = sorted(sizes.items(), key=lambda x: x[1], reverse=True)
+    # Use `groupby` to group the elements by size, so that we can assign
+    # ranks properly (i.e., if two elements have the same size, they get the
+    # same rank).
+    grouped = []
+    for size, group in groupby(sorted_sizes, key=itemgetter(1)):
+        grouped.append((size, list(group)))
+    # Now assign ranks and build a list that accounts for ties.
+    ranked_with_ties: list[tuple[int, int, list[str]]] = []
+    current_rank = 1
+    for size, group in grouped:
+        ranked_with_ties.append(
+            (current_rank, size, sorted([name for name, _ in group]))
+        )
+        current_rank += len(group)
+
+    # Now extract the largest N and smallest N, accounting for ties.
+    lg_count = 0
+    sm_count = 0
+    for item in ranked_with_ties:
+        rank, size, names = item
+        if lg_count < n:
+            largest.append((rank, size, names))
+            lg_count += len(names)
+        if lg_count >= n:
+            break
+    for item in reversed(ranked_with_ties):
+        rank, size, names = item
+        if sm_count < n:
+            smallest.append((rank, size, names))
+            sm_count += len(names)
+        if sm_count >= n:
+            break
+
+    return largest, list(reversed(smallest))
+
+
 def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
     """Recursively gather metrics at folder `node`."""
 
-    # Used to make unique identifier for the folder. THe "::" sequence is used
+    # Used to make unique identifier for the folder. The "::" sequence is used
     # because folder names can (and do) contain "/".
     folder = '::'.join(path)
+
+    # Update maximum depth
+    metrics.folders.max_depth = max(metrics.folders.max_depth, node.depth)
 
     # Get the size, then separate content into bookmarks and sub-folders.
     folder_size = len(node.content)
@@ -235,5 +287,31 @@ def gather_metrics(week: Folder) -> Metrics:
 
     # Uniqueness of tags
     metrics.tags.unique_tags_count = len(metrics.tags.items)
+
+    # Top and bottom folders by size (5). We want this to be based on just the
+    # number of bookmarks in the folder, not including sub-folders.
+    folder_sizes: Counter[str] = Counter()
+    # BFS over (folder, path_parts). Start like _gather_metrics (root path is
+    # ['']).
+    queue: list[tuple[Folder, list[str]]] = [(week, [''])]
+    while queue:
+        folder, path = queue.pop(0)
+        parts = [*path, folder.name]
+        folder_id = '::'.join(p for p in parts if p)  # empty string for root
+        bookmarks_in_folder = 0
+        for item in folder.content:
+            if isinstance(item, Folder):
+                queue.append((item, parts))
+            else:
+                bookmarks_in_folder += 1
+        folder_sizes[folder_id] = bookmarks_in_folder
+
+    metrics.folders.top_n, metrics.folders.bottom_n = (
+        get_largest_and_smallest(folder_sizes, 5)
+    )
+    # Top and bottom tags by size (25)
+    metrics.tags.top_n, metrics.tags.bottom_n = (
+        get_largest_and_smallest(metrics.tags.sizes, 25)
+    )
 
     return metrics

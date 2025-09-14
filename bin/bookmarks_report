@@ -11,7 +11,7 @@ import sys
 from typing import TextIO
 
 from bookmarkos.data.bookmarks import Folder, Bookmark
-from bookmarkos.data.metrics import Metrics
+from bookmarkos.data.metrics import Metrics, SizeMetrics
 from bookmarkos.json_io import read_bookmarks_json
 from bookmarkos.metrics import gather_metrics, differentiate_metrics, \
     all_bookmarks_sorted
@@ -56,6 +56,40 @@ def format_bookmark(bookmark: Bookmark) -> str:
     timestamp = created.ctime()
 
     return f"{bookmark.name} ({timestamp})"
+
+
+def show_n_lists(
+        lines: list[tuple[str, int | str]],
+        metrics: SizeMetrics,
+        kind: str,
+        n: int
+) -> None:
+    """Append the top-N and bottom-N lists to the content list."""
+
+    top_label = f'Top {n} largest {kind}:'
+    bottom_label = f'Top {n} smallest {kind}:'
+
+    for label, data in zip(
+        [top_label, bottom_label],
+        [metrics.top_n, metrics.bottom_n]
+    ):
+        if not data:
+            continue
+        # Build rank labels
+        ranks = [f'{rank}: ' for (rank, _, _) in data]
+        width = max((len(x) for x in ranks), default=0)
+        ranks = [f'{x:>{width}}' for x in ranks] if width else ranks
+        spacer = ' ' * width
+
+        first = True
+        for (rank_size_names, rank_label) in zip(data, ranks):
+            _, size, names = rank_size_names
+            lines.append(
+                (label if first else '', f'{rank_label}{names[0]} ({size})')
+            )
+            first = False
+            for name in names[1:]:
+                lines.append(('', f'{spacer}{name}'))
 
 
 def output(lines: list[tuple[str, int | str]], fp: TextIO) -> None:
@@ -110,6 +144,9 @@ def output_folders_weekly(these: Metrics, fp: TextIO) -> None:
         )
     )
     content.append(('Average folder size:', f'{metrics.avg_size:.2f}'))
+    content.append(('Maximum folder depth:', metrics.max_depth))
+    show_n_lists(content, metrics, 'folders', 5)
+
     output(content, fp)
 
 
@@ -210,9 +247,11 @@ def output_tags_weekly(these: Metrics, fp: TextIO) -> None:
             min(metrics.sizes[x] for x in metrics.sizes.keys())
         )
     )
-    content.append(('Average tag reach:', f'{metrics.avg_size:.2f}'))
+    content.append(('Average tag size:', f'{metrics.avg_size:.2f}'))
     content.append(('Highest number of tags:', metrics.max_size))
     content.append(('Lowest number of tags:', metrics.min_size))
+    show_n_lists(content, metrics, 'tags', 25)
+
     output(content, fp)
 
 

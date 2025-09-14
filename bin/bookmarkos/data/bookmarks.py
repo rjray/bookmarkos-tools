@@ -31,6 +31,8 @@ class Node():
 class Folder(Node):
     """A simple class for representing a folder."""
 
+    depth: int = 0
+    "Depth of this folder in the overall tree"
     content: FolderContent = field(default_factory=list)
     "The contents of this folder"
 

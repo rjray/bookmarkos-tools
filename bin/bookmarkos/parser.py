@@ -68,6 +68,7 @@ def process_folder(text: str, depth: int, queue: list[str]) -> Folder:
     # as `text`. The `depth` parameter is used to create the marker we will
     # look for as signaling the end of the folder.
     folder = Folder().fill(text)
+    folder.depth = depth
     padding = '    ' * depth
     end_marker = f'{padding}</DL><p>'
     line = None

@@ -7,6 +7,11 @@ import sys
 from bookmarkos.data.bookmarks import Bookmark
 
 
+type SizeRankedList = list[tuple[int, int, list[str]]]
+"""A type-alias for the lists of (rank, size, list(names)) tuples used in
+`SizeMetrics`."""
+
+
 @dataclass
 class CoreMetrics():
     # pylint: disable=too-many-instance-attributes
@@ -42,11 +47,22 @@ class SizeMetrics():
     "Size of the largest entity"
     avg_size: float = 0.0
     "Average size of all entities of the type"
+    top_n: SizeRankedList = field(
+        default_factory=list, compare=False, repr=False
+    )
+    "The top N items by size, as (rank, size, list(names)) tuples, with ties"
+    bottom_n: SizeRankedList = field(
+        default_factory=list, compare=False, repr=False
+    )
+    "The bottom N items by size, as (rank, size, list(names)) tuples, with ties"
 
 
 @dataclass
 class FoldersMetrics(CoreMetrics, SizeMetrics):
     """CoreMetrics+SizeMetrics, plus anything extra needed for folders."""
+
+    max_depth: int = 0
+    "Maximum depth of the folder tree"
 
 
 @dataclass
