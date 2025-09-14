@@ -21,6 +21,9 @@ These are the metrics being gathered in the current implementation.
 10. Smallest folder size
 11. Largest folder size
 12. Average folder size
+13. Maximum depth
+14. Top 5 folders by size (by bookmarks only)
+15. Bottom 5 folders by size (by bookmarks only)
 
 Items 3-8 are only calculated when there is a second (basis) data-set to
 compare the focus data-set with. In the absence of a basis the values will
@@ -58,6 +61,8 @@ reflect an assumption that all content is new.
 12. Largest tag size/reach
 13. Average tag size/reach
 14. Count of distinct tags' usage by date, within the period being measured
+15. Top 25 tags by usage
+16. Bottom 25 tags by usage
 
 Items 4-9 and 14 are only calculated when there is a second (basis) data-set to
 compare the focus data-set with. In the absence of a basis the values will
@@ -69,11 +74,7 @@ These are the metrics that are planned for addition to the above.
 
 ### Folders Plans
 
-1. Time each folder appears (except root)
-2. Number of bookmarks added to a folder over time
-3. Top 5 folders by size (bookmarks only?)
-4. Bottom 5 folders by size (bookmarks only?)
-5. Fan-out: max depth, max breadth
+1. Number of bookmarks added to a folder over time
 
 ### Bookmarks Plans
 
@@ -86,7 +87,5 @@ These are the metrics that are planned for addition to the above.
 1. Time each tag was first used
 2. How recently a tag has been used
 3. Some sort of clustering analysis of "bursts" of usage of a given tag
-4. Top 25 tags by usage/reach
-5. Bottom 25 tags by usage/reach
-6. Identification of groups of tags with low Levenshtein distance
-7. Top 25 tag relations
+4. Identification of groups of tags with low Levenshtein distance
+5. Top 25 tag relations
