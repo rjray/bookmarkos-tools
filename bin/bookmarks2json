@@ -54,8 +54,7 @@ def main():
     if args.sorted:
         json_args['sort_keys'] = True
 
-    with ofh:
-        write_json_data(root, ofh, json=json_args)
+    write_json_data(root, ofh, json=json_args)
 
 
 if __name__ == '__main__':
