@@ -81,15 +81,38 @@ def show_n_lists(
         ranks = [f'{x:>{width}}' for x in ranks] if width else ranks
         spacer = ' ' * width
 
-        first = True
-        for (rank_size_names, rank_label) in zip(data, ranks):
-            _, size, names = rank_size_names
-            lines.append(
-                (label if first else '', f'{rank_label}{names[0]} ({size})')
-            )
-            first = False
-            for name in names[1:]:
-                lines.append(('', f'{spacer}{name}'))
+        _show_list(lines, label, data, ranks, spacer)
+
+
+def _show_list(
+        lines: list[tuple[str, int | str]],
+        label: str,
+        data: list[tuple[int, int, list[str]]],
+        ranks: list[str],
+        spacer: str
+) -> None:
+    """Append one of the top-N or bottom-N lists to the content list. Factored
+    out of `show_n_lists` to reduce code complexity."""
+
+    # The `first` Boolean is used to ensure that `label` only appears on the
+    # first line of the list.
+    first = True
+    for (rank_size_names, rank_label) in zip(data, ranks):
+        _, size, names = rank_size_names
+
+        first_data = f'{rank_label}{names[0]}'
+        if len(names) == 1:
+            first_data += f' ({size})'
+        else:
+            first_data += f' ({size}, {len(names)}-way tie)'
+
+        lines.append(
+            (label if first else '', first_data)
+        )
+
+        first = False
+        for name in names[1:]:
+            lines.append(('', f'{spacer}{name}'))
 
 
 def output(lines: list[tuple[str, int | str]], fp: TextIO) -> None:
