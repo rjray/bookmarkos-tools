@@ -25,6 +25,8 @@ class Node():
     "The creation time, as UNIX seconds"
     updated: int = 0
     "The last-update time, as UNIX seconds"
+    parent: list[str] = field(default_factory=list)
+    "The parent path to this node, as a list of folder names"
 
 
 @dataclass

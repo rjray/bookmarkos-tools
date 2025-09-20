@@ -12,7 +12,13 @@ from bookmarkos.data.bookmarks import Bookmark, Folder
 from bookmarkos.json_io import read_content
 
 
-def process_dt(line: str, queue: list[str], folder: Folder, depth: int) -> None:
+def process_dt(
+        line: str,
+        queue: list[str],
+        folder: Folder,
+        depth: int,
+        parent: list[str]
+) -> None:
     """Process a `<DT>` block."""
 
     # Look for either A or H3 following a DT. Preserve the specific tag and the
@@ -24,14 +30,16 @@ def process_dt(line: str, queue: list[str], folder: Folder, depth: int) -> None:
 
         if tag == 'A':
             # Bookmark. Simple.
-            folder.content.append(Bookmark().fill(markup))
+            bookmark = Bookmark().fill(markup)
+            bookmark.parent = parent[:]
+            folder.content.append(bookmark)
         else:
             # Folder. First we have to ensure that the next line is the opening
             # of a folder, then we process it recursively.
             next_line = queue.pop(0)
             if re.fullmatch(r'^\s+<DL><p>$', next_line):
                 folder.content.append(
-                    process_folder(markup, depth + 1, queue)
+                    process_folder(markup, depth + 1, queue, parent)
                 )
             else:
                 raise ValueError(
@@ -59,7 +67,9 @@ def process_dd(line: str, folder: Folder) -> None:
         raise ValueError('<DD> tag out of place')
 
 
-def process_folder(text: str, depth: int, queue: list[str]) -> Folder:
+def process_folder(
+        text: str, depth: int, queue: list[str], path: list[str]
+) -> Folder:
     """Handle the parsing and conversion of one folder. Called after the
     opening `<DL>` tag has been detected and proceeds until the closing tag
     is detected. Recurses into any sub-folders found."""
@@ -69,10 +79,12 @@ def process_folder(text: str, depth: int, queue: list[str]) -> Folder:
     # look for as signaling the end of the folder.
     folder = Folder().fill(text)
     folder.depth = depth
+    folder.parent = path[:]
     padding = '    ' * depth
     end_marker = f'{padding}</DL><p>'
-    line = None
+    parent = path + [folder.name]
 
+    line = None
     while len(queue) > 0:
         line = queue.pop(0)
         if line == end_marker:
@@ -84,7 +96,7 @@ def process_folder(text: str, depth: int, queue: list[str]) -> Folder:
         # Within the opening DL and the value of `end_marker`, we should only
         # see DT and DD tags.
         if '<DT>' in line:
-            process_dt(line, queue, folder, depth)
+            process_dt(line, queue, folder, depth, parent)
         elif '<DD>' in line:
             process_dd(line, folder)
         else:
@@ -124,4 +136,4 @@ def parse_bookmarks(content: str | TextIO | TextIOWrapper) -> Folder:
 
     lines.pop(0)
 
-    return process_folder('', 0, lines)
+    return process_folder('', 0, lines, [])
