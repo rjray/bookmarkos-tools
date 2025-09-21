@@ -13,5 +13,5 @@ json="bookmarks-$date.json.gz"
 
 gzip -c -9 backup.html > $html && bookmarks2json --input $html --output $json
 
-bookmarks_report weekly $json.gz | \
+bookmarks_report weekly $json | \
   mailx -s "Weekly Bookmarks Report" rjray@blackperl.com
