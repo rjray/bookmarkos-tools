@@ -7,18 +7,18 @@ from itertools import groupby
 from operator import attrgetter, itemgetter
 
 from bookmarkos.data.bookmarks import Folder, Bookmark, FolderContent
-from bookmarkos.data.metrics import Metrics, SizeMetrics
+from bookmarkos.data.metrics import Metrics, SizeMetrics, SizeRankedList
 
 
 def get_largest_and_smallest(
         sizes: Counter[str], n: int
-) -> tuple[list[tuple[int, int, list[str]]], list[tuple[int, int, list[str]]]]:
+) -> tuple[SizeRankedList, SizeRankedList]:
     """Return the N largest and smallest items from the `sizes` Counter object,
     as two lists of (name, size, rank) tuples. Ties are handled, and ties may
     cause the displayed lists to be longer than N."""
 
-    largest: list[tuple[int, int, list[str]]] = []
-    smallest: list[tuple[int, int, list[str]]] = []
+    largest: SizeRankedList = []
+    smallest: SizeRankedList = []
 
     # Sort the elements by size.
     sorted_sizes = sorted(sizes.items(), key=lambda x: x[1], reverse=True)
@@ -29,7 +29,7 @@ def get_largest_and_smallest(
     for size, group in groupby(sorted_sizes, key=itemgetter(1)):
         grouped.append((size, list(group)))
     # Now assign ranks and build a list that accounts for ties.
-    ranked_with_ties: list[tuple[int, int, list[str]]] = []
+    ranked_with_ties: SizeRankedList = []
     current_rank = 1
     for size, group in grouped:
         ranked_with_ties.append(
