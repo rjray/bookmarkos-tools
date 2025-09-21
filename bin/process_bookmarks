@@ -5,16 +5,13 @@ cd "$HOME/Dropbox/Apps/Bookmark OS"
 # Do we have Linuxbrew set up?
 if [ -d /home/linuxbrew/.linuxbrew ]; then
     eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
-    export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:$XDG_DATA_DIRS"
 fi
 
 date=$(date +"%Y%m%d")
-html="bookmarks-$date.html"
-json="bookmarks-$date.json"
+html="bookmarks-$date.html.gz"
+json="bookmarks-$date.json.gz"
 
-cp backup.html $html && \
-  bookmarks2json --input $html --output $json && \
-  gzip -9 $html $json
+gzip -c -9 backup.html > $html && bookmarks2json --input $html --output $json
 
 bookmarks_report weekly $json.gz | \
   mailx -s "Weekly Bookmarks Report" rjray@blackperl.com

@@ -13,7 +13,7 @@ Ideas and goals that haven't been implemented yet.
 ## Parsing
 
 1. Fix parser code to no longer strip folder-related lines before processing
-2. Make `bookmarks2json` default to reading from/writing to compressed files
+2. ~~Make `bookmarks2json` default to reading from/writing to compressed files~~
 3. Database support
 
 ## Metrics
