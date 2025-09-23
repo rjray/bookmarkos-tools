@@ -4,11 +4,15 @@ Ideas and goals that haven't been implemented yet.
 
 ## General
 
-1. Decide on whether to go database-only or support files as well
-2. Turn `restore_bookmarks` into an initialization tool that takes all existing
+1. Implement a database layer for data
+   1. Use native SQLite bindings
+   2. Schema
+   3. Initialization code
+2. Decide on whether to go database-only or support files as well
+3. Turn `restore_bookmarks` into an initialization tool that takes all existing
    backup files and creates either the DB or (and?) files for all weeks
-3. Determine the option-needs of each tool and set up the TOML file
-4. Add support for the TOML file alongside existing options-handling
+4. Determine the option-needs of each tool and set up the TOML file
+5. Add support for the TOML file alongside existing options-handling
 
 ## Parsing
 
@@ -28,13 +32,14 @@ Ideas and goals that haven't been implemented yet.
 ## Reporting
 
 1. Direct emailing support
-2. Get weekly report into HTML and into direct emailing, first
-3. Determine the planned report types
+2. Database support
+3. Get weekly report into HTML and into direct emailing, first
+4. Determine the planned report types
    1. Weekly
    2. Monthly
    3. Full data (what would that be?)
    4. Trends (very much open to interpretation)
-4. Abstract all (planned) report types
+5. Abstract all (planned) report types
    1. Plain text
    2. HTML
    3. Others?
@@ -43,6 +48,7 @@ Ideas and goals that haven't been implemented yet.
 
 For vizualization, a basic SPA will be written. Some initial ideas:
 
+- Will require the database
 - Growth of bookmarks over time
 - Additions by day-of-the-week
 - Tag cloud
