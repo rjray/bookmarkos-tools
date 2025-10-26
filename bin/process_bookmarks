@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+umask 0022
+
 cd "$HOME/Dropbox/Apps/Bookmark OS"
 
 # Do we have Linuxbrew set up?
