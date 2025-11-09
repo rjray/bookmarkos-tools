@@ -1,12 +1,13 @@
 """Home of all metrics-related processing and calculation, etc."""
 
 from bisect import bisect_left
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timezone
 from itertools import groupby
 from operator import attrgetter, itemgetter
+from typing import Dict, List, Tuple, Set
 
-from bookmarkos.data.bookmarks import Folder, Bookmark, FolderContent
+from bookmarkos.data.bookmarks import Folder, Bookmark
 from bookmarkos.data.metrics import Metrics, SizeMetrics, SizeRankedList
 
 
@@ -15,55 +16,70 @@ def get_largest_and_smallest(
 ) -> tuple[SizeRankedList, SizeRankedList]:
     """Return the N largest and smallest items from the `sizes` Counter object,
     as two lists of (name, size, rank) tuples. Ties are handled, and ties may
-    cause the displayed lists to be longer than N."""
+    cause the displayed lists to be longer than N.
+
+    Args:
+        sizes: Counter object mapping names to their sizes
+        n: Number of items to return in each list
+
+    Returns:
+        Tuple of (largest, smallest) ranked lists
+    """
+    if not sizes:
+        return [], []
 
     largest: SizeRankedList = []
     smallest: SizeRankedList = []
 
     # Sort the elements by size.
-    sorted_sizes = sorted(sizes.items(), key=lambda x: x[1], reverse=True)
-    # Use `groupby` to group the elements by size, so that we can assign
-    # ranks properly (i.e., if two elements have the same size, they get the
-    # same rank).
-    grouped = []
-    for size, group in groupby(sorted_sizes, key=itemgetter(1)):
-        grouped.append((size, list(group)))
-    # Now assign ranks and build a list that accounts for ties.
+    sorted_sizes = sorted(sizes.items(), key=itemgetter(1), reverse=True)
+
+    # Group by size for proper rank assignment
     ranked_with_ties: SizeRankedList = []
     current_rank = 1
-    for size, group in grouped:
-        ranked_with_ties.append(
-            (current_rank, size, sorted([name for name, _ in group]))
-        )
-        current_rank += len(group)
 
-    # Now extract the largest N and smallest N, accounting for ties.
-    lg_count = 0
-    sm_count = 0
-    for item in ranked_with_ties:
-        rank, size, names = item
-        if lg_count < n:
+    for size, group in groupby(sorted_sizes, key=itemgetter(1)):
+        group_items = list(group)
+        ranked_with_ties.append(
+            (current_rank, size, sorted([name for name, _ in group_items]))
+        )
+        current_rank += len(group_items)
+
+    # Extract the largest N and smallest N, accounting for ties.
+    largest_count = 0
+    smallest_count = 0
+
+    for rank, size, names in ranked_with_ties:
+        if largest_count < n:
             largest.append((rank, size, names))
-            lg_count += len(names)
-        if lg_count >= n:
+            largest_count += len(names)
+        if largest_count >= n:
             break
-    for item in reversed(ranked_with_ties):
-        rank, size, names = item
-        if sm_count < n:
+
+    for rank, size, names in reversed(ranked_with_ties):
+        if smallest_count < n:
             smallest.append((rank, size, names))
-            sm_count += len(names)
-        if sm_count >= n:
+            smallest_count += len(names)
+        if smallest_count >= n:
             break
 
     return largest, list(reversed(smallest))
 
 
-def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
-    """Recursively gather metrics at folder `node`."""
+def _gather_metrics(node: Folder, path: List[str], metrics: Metrics) -> Counter[str]:
+    """Recursively gather metrics at folder `node`.
 
+    Args:
+        node: Current folder being processed
+        path: Path to current folder as list of folder names
+        metrics: Metrics object to update
+
+    Returns:
+        Counter mapping folder IDs to their bookmark counts (excluding subfolders)
+    """
     # Used to make unique identifier for the folder. The "::" sequence is used
     # because folder names can (and do) contain "/".
-    folder = '::'.join(path)
+    folder_id = '::'.join(path)
 
     # Update maximum depth
     metrics.folders.max_depth = max(metrics.folders.max_depth, node.depth)
@@ -73,10 +89,13 @@ def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
     bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
     subfolders = [x for x in node.content if isinstance(x, Folder)]
 
+    # Count of bookmarks only (for ranking purposes)
+    bookmark_count = len(bookmarks)
+
     # Folder-oriented metrics
     metrics.folders.count += 1
-    metrics.folders.items.add(folder)
-    metrics.folders.sizes[folder] = folder_size
+    metrics.folders.items.add(folder_id)
+    metrics.folders.sizes[folder_id] = folder_size
     metrics.folders.max_size = max(metrics.folders.max_size, folder_size)
     metrics.folders.min_size = min(metrics.folders.min_size, folder_size)
 
@@ -94,57 +113,83 @@ def _gather_metrics(node: Folder, path: list[str], metrics: Metrics) -> None:
             metrics.tags.items.add(tag)
             metrics.tags.sizes[tag] += 1
 
+    # Initialize folder sizes counter for this level
+    folder_sizes: Counter[str] = Counter()
+    folder_sizes[folder_id] = bookmark_count
+
+    # Recurse into subfolders
     for subfolder in subfolders:
-        # Seems the only way to prevent corruption of the `path` list is to
-        # explicitly copy it and append the new name.
-        newpath = path.copy()
-        newpath.append(subfolder.name)
-        _gather_metrics(subfolder, newpath, metrics)
+        # Create new path for subfolder
+        newpath = path + [subfolder.name]
+        subfolder_sizes = _gather_metrics(subfolder, newpath, metrics)
+        folder_sizes.update(subfolder_sizes)
+
+    return folder_sizes
 
 
 def average_size(metrics: SizeMetrics) -> float:
-    """Calculate the average size for either `folders` or `tags`."""
+    """Calculate the average size for either `folders` or `tags`.
+
+    Args:
+        metrics: SizeMetrics object containing sizes
+
+    Returns:
+        Average size, or 0.0 if no items exist
+
+    Raises:
+        ValueError: If metrics.sizes is None
+    """
+    if metrics.sizes is None:
+        raise ValueError("Metrics sizes cannot be None")
 
     sizes = metrics.sizes
     count = len(sizes)
-    total = sum(sizes[x] for x in sizes.keys())
 
+    if count == 0:
+        return 0.0
+
+    total = sum(sizes.values())
     return total / count
 
 
-def new_bookmarks_by_date(metrics: Metrics) -> dict[str, list[int]]:
+def new_bookmarks_by_date(metrics: Metrics) -> Dict[str, List[int]]:
     """Return a dictionary of the new bookmarks, indexed by their date-added
-    timestamp (YYYY-MM-DD)."""
+    timestamp (YYYY-MM-DD).
 
-    by_date: dict[str, list[int]] = {}
+    Args:
+        metrics: Metrics object containing bookmark data
+
+    Returns:
+        Dictionary mapping date strings to lists of bookmark IDs
+    """
+    by_date: Dict[str, List[int]] = {}
 
     for bookmark_id in sorted(metrics.bookmarks.added):
         # Convert the bookmark ID (which is a UNIX timestamp) into a date
         # string of the form "YYYY-MM-DD".
-
         dt = datetime.fromtimestamp(bookmark_id, tz=timezone.utc)
         date_str = dt.strftime('%Y-%m-%d')
 
-        if date_str not in by_date:
-            by_date[date_str] = []
-        by_date[date_str].append(bookmark_id)
+        by_date.setdefault(date_str, []).append(bookmark_id)
 
     return by_date
 
 
-def tags_usage_by_date(metrics: Metrics) -> dict[str, Counter[str]]:
+def tags_usage_by_date(metrics: Metrics) -> Dict[str, Counter[str]]:
     """Return a dictionary of tags used on new bookmarks, indexed by the
-    date-added timestamp (YYYY-MM-DD) of the bookmark. The `bookmarks` argument
-    is the root folder of the dataset, used for referencing the new bookmarks
-    for their tags."""
+    date-added timestamp (YYYY-MM-DD) of the bookmark.
 
-    by_date: dict[str, Counter[str]] = {}
+    Args:
+        metrics: Metrics object containing new bookmark data
+
+    Returns:
+        Dictionary mapping date strings to Counter objects of tag usage
+    """
+    by_date: Dict[str, Counter[str]] = {}
 
     for bookmark in metrics.bookmarks.new_bookmarks:
-        # Convert the bookmark ID (which is a UNIX timestamp) into a date
-        # string of the form "YYYY-MM-DD".
-
-        dt = datetime.fromtimestamp(bookmark.created).astimezone(timezone.utc)
+        # Convert the bookmark created timestamp into a date string
+        dt = datetime.fromtimestamp(bookmark.created, tz=timezone.utc)
         date_str = dt.strftime('%Y-%m-%d')
 
         if date_str not in by_date:
@@ -156,23 +201,63 @@ def tags_usage_by_date(metrics: Metrics) -> dict[str, Counter[str]]:
     return by_date
 
 
-def all_bookmarks_sorted(data: Folder) -> list[Bookmark]:
+def all_bookmarks_sorted(data: Folder) -> List[Bookmark]:
     """Create a list of all bookmarks in `data`, sorted by the creation time.
-    Uses an iterative BFS approach."""
+    Uses an iterative BFS approach with efficient queue operations.
 
-    bookmarks: list[Bookmark] = []
-    queue: FolderContent = data.content[:]
+    Args:
+        data: Root folder to traverse
 
-    while len(queue) > 0:
-        item = queue.pop(0)
+    Returns:
+        List of all bookmarks sorted by creation timestamp
+    """
+    bookmarks: List[Bookmark] = []
+    queue: deque[Folder | Bookmark] = deque(data.content)
+
+    while queue:
+        item = queue.popleft()
 
         if isinstance(item, Bookmark):
             bookmarks.append(item)
-        else:
-            queue += item.content
+        elif isinstance(item, Folder):
+            queue.extend(item.content)
 
     bookmarks.sort(key=attrgetter('created'))
     return bookmarks
+
+
+def _calculate_delta_metrics(
+    current_count: int,
+    previous_count: int,
+    current_items: Set,
+    previous_items: Set | None = None
+) -> Tuple[int, float, Set, int, Set, int]:
+    """Calculate delta metrics between current and previous datasets.
+
+    Args:
+        current_count: Current item count
+        previous_count: Previous item count (0 for initial data)
+        current_items: Set of current items
+        previous_items: Set of previous items (None for initial data)
+
+    Returns:
+        Tuple of (delta, delta_pct, added, added_count, deleted, deleted_count)
+    """
+    delta = current_count - previous_count
+
+    if previous_count == 0:
+        delta_pct = 1.0 if current_count != 0 else 0.0
+    else:
+        delta_pct = delta / previous_count
+
+    if previous_items is not None:
+        added = current_items - previous_items
+        deleted = previous_items - current_items
+    else:
+        added = current_items.copy()
+        deleted = set()
+
+    return delta, delta_pct, added, len(added), deleted, len(deleted)
 
 
 def differentiate_metrics(
@@ -182,130 +267,97 @@ def differentiate_metrics(
 ) -> None:
     """Calculate the additional values (differences, etc.) between two sets of
     metrics. These values only update the metrics of `these`. If `those` is
-    `None`, then all differentials are set to represent initial data values."""
+    `None`, then all differentials are set to represent initial data values.
 
-    if those is not None:
-        # Additional values for bookmarks
-        bookmarks = these.bookmarks
-        bookmarks.delta = bookmarks.count - those.bookmarks.count
-        if those.bookmarks.count == 0:
-            bookmarks.delta_pct = 1.0
-        else:
-            bookmarks.delta_pct = bookmarks.delta / those.bookmarks.count
-        bookmarks.added = bookmarks.items - those.bookmarks.items
-        bookmarks.added_count = len(bookmarks.added)
-        bookmarks.deleted = those.bookmarks.items - bookmarks.items
-        bookmarks.deleted_count = len(bookmarks.deleted)
+    Args:
+        this_week: Current week's folder data
+        these: Current metrics to update
+        those: Previous metrics for comparison (None for initial data)
+    """
+    # Handle bookmarks metrics
+    bookmarks = these.bookmarks
+    prev_bookmarks = those.bookmarks if those else None
+    prev_count = prev_bookmarks.count if prev_bookmarks else 0
+    prev_items = prev_bookmarks.items if prev_bookmarks else None
 
-        # Additional values for folders
-        folders = these.folders
-        folders.delta = folders.count - those.folders.count
-        if those.folders.count == 0:
-            folders.delta_pct = 1.0
-        else:
-            folders.delta_pct = folders.delta / those.folders.count
-        folders.added = folders.items - those.folders.items
-        folders.added_count = len(folders.added)
-        folders.deleted = those.folders.items - folders.items
-        folders.deleted_count = len(folders.deleted)
+    (bookmarks.delta, bookmarks.delta_pct, bookmarks.added,
+     bookmarks.added_count, bookmarks.deleted, bookmarks.deleted_count) = \
+        _calculate_delta_metrics(bookmarks.count, prev_count,
+                                 bookmarks.items, prev_items)
 
-        # Additional values for tags
-        tags = these.tags
-        this_tags = tags.items
-        last_tags = those.tags.items
-        len_this = len(this_tags)
-        len_last = len(last_tags)
-        tags.delta = len_this - len_last
-        if len_last == 0:
-            tags.delta_pct = 0.0 if len_this == 0 else 1.0
-        else:
-            tags.delta_pct = tags.delta / len_last
-        tags.added = this_tags - last_tags
-        tags.added_count = len(tags.added)
-        tags.deleted = last_tags - this_tags
-        tags.deleted_count = len(tags.deleted)
-    else:
-        # If this is called with no value for `those`, then this represents
-        # the very initial bookmarks set. Assign the values appropriately.
+    # Handle folders metrics
+    folders = these.folders
+    prev_folders = those.folders if those else None
+    prev_count = prev_folders.count if prev_folders else 0
+    prev_items = prev_folders.items if prev_folders else None
 
-        # Bookmarks
-        bookmarks = these.bookmarks
-        bookmarks.delta = bookmarks.count
-        bookmarks.delta_pct = 1.0 if bookmarks.count != 0 else 0.0
-        bookmarks.added = bookmarks.items.copy()
-        bookmarks.added_count = bookmarks.count
-        bookmarks.deleted = set()
-        bookmarks.deleted_count = 0
+    (folders.delta, folders.delta_pct, folders.added,
+     folders.added_count, folders.deleted, folders.deleted_count) = \
+        _calculate_delta_metrics(folders.count, prev_count,
+                                 folders.items, prev_items)
 
-        # Folders
-        folders = these.folders
-        folders.delta = folders.count
-        folders.delta_pct = 1.0 if folders.count != 0 else 0.0
-        folders.added = folders.items.copy()
-        folders.added_count = folders.count
-        folders.deleted = set()
-        folders.deleted_count = 0
+    # Handle tags metrics (special case for unique count)
+    tags = these.tags
+    prev_tags = those.tags if those else None
+    current_unique_count = len(tags.items)
+    prev_unique_count = len(prev_tags.items) if prev_tags else 0
+    prev_items = prev_tags.items if prev_tags else None
 
-        # Tags
-        tags = these.tags
-        this_tags = tags.items
-        tags.delta = len(this_tags)
-        tags.delta_pct = 1.0 if tags.delta != 0 else 0.0
-        tags.added = this_tags.copy()
-        tags.added_count = len(this_tags)
-        tags.deleted = set()
-        tags.deleted_count = 0
+    (tags.delta, tags.delta_pct, tags.added,
+     tags.added_count, tags.deleted, tags.deleted_count) = \
+        _calculate_delta_metrics(current_unique_count, prev_unique_count,
+                                 tags.items, prev_items)
 
-    # Generate some of the aggregrated values.
+    # Generate aggregated values
+    _generate_aggregated_metrics(this_week, these)
 
+
+def _generate_aggregated_metrics(this_week: Folder, metrics: Metrics) -> None:
+    """Generate aggregated metric values like new bookmarks by date.
+
+    Args:
+        this_week: Current week's folder data
+        metrics: Metrics object to update with aggregated values
+    """
     # Bookmark objects for the new bookmarks
     all_bookmarks = all_bookmarks_sorted(this_week)
-    these.bookmarks.new_bookmarks = []
-    for bookmark_id in sorted(these.bookmarks.added):
+    metrics.bookmarks.new_bookmarks = []
+
+    for bookmark_id in sorted(metrics.bookmarks.added):
         pos = bisect_left(
             all_bookmarks, bookmark_id, key=attrgetter('created')
         )
-        these.bookmarks.new_bookmarks.append(all_bookmarks[pos])
+        metrics.bookmarks.new_bookmarks.append(all_bookmarks[pos])
+
     # New bookmarks by date
-    these.bookmarks.new_bookmarks_by_date = new_bookmarks_by_date(these)
+    metrics.bookmarks.new_bookmarks_by_date = new_bookmarks_by_date(metrics)
     # New bookmarks' tag usage by date
-    these.tags.tags_by_date = tags_usage_by_date(these)
+    metrics.tags.tags_by_date = tags_usage_by_date(metrics)
 
 
 def gather_metrics(week: Folder) -> Metrics:
-    """Determine the metrics of the given week's data."""
+    """Determine the metrics of the given week's data.
 
+    Args:
+        week: Root folder to analyze
+
+    Returns:
+        Metrics object containing all calculated statistics
+    """
     metrics = Metrics()
 
     # Start the recursive gathering from `week` (the root folder) with a null
     # folder-name element and the fresh `Metrics` object.
-    _gather_metrics(week, [''], metrics)
+    folder_sizes = _gather_metrics(week, [''], metrics)
 
-    # Averages
+    # Calculate averages (with safety checks)
     metrics.tags.avg_size = average_size(metrics.tags)
     metrics.folders.avg_size = average_size(metrics.folders)
 
     # Uniqueness of tags
     metrics.tags.unique_tags_count = len(metrics.tags.items)
 
-    # Top and bottom folders by size (5). We want this to be based on just the
-    # number of bookmarks in the folder, not including sub-folders.
-    folder_sizes: Counter[str] = Counter()
-    # BFS over (folder, path_parts). Start like _gather_metrics (root path is
-    # ['']).
-    queue: list[tuple[Folder, list[str]]] = [(week, [''])]
-    while queue:
-        folder, path = queue.pop(0)
-        parts = [*path, folder.name]
-        folder_id = '::'.join(p for p in parts if p)  # empty string for root
-        bookmarks_in_folder = 0
-        for item in folder.content:
-            if isinstance(item, Folder):
-                queue.append((item, parts))
-            else:
-                bookmarks_in_folder += 1
-        folder_sizes[folder_id] = bookmarks_in_folder
-
+    # Top and bottom folders by size (5) - use the sizes collected during traversal
     metrics.folders.top_n, metrics.folders.bottom_n = (
         get_largest_and_smallest(folder_sizes, 5)
     )
