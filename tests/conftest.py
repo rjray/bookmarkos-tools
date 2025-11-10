@@ -10,7 +10,9 @@ from unittest.mock import Mock
 import pytest
 
 # Add the bin directory to the Python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'bin'))
+bin_path = os.path.join(os.path.dirname(__file__), '..', 'bin')
+if bin_path not in sys.path:
+    sys.path.insert(0, bin_path)
 
 
 @pytest.fixture
