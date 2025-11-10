@@ -1,7 +1,7 @@
 """Abstract all the input/output of JSON data for the suite of tools."""
 
 import gzip as GZ
-from io import TextIOWrapper
+from io import StringIO, TextIOWrapper
 import json as JS
 from typing import Any, Self, TextIO
 
@@ -53,7 +53,7 @@ def read_content(file: str | TextIO | TextIOWrapper) -> str:
     """Read the content of `file`, regardless of its type (including if the
     file name indicates compressed data)."""
 
-    if isinstance(file, (TextIO, TextIOWrapper)):
+    if isinstance(file, (TextIO, TextIOWrapper, StringIO)):
         # A pre-existing file-handle. It will be read from directly and we
         # return immediately (without closing the existing handle).
         return file.read()
@@ -106,7 +106,7 @@ def write_json_data(
     if gzip is not None:
         gzip_args |= gzip
 
-    if isinstance(file, (TextIO, TextIOWrapper)):
+    if isinstance(file, (TextIO, TextIOWrapper, StringIO)):
         # An existing open file handle. It will be written to directly and we
         # return immediately (without closing the existing handle).
         JS.dump(data, file, **json_args)
