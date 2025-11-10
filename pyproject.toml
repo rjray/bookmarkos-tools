@@ -1,0 +1,27 @@
+[tool.pytest.ini_options]
+# Basic pytest configuration for BookmarkOS Tools
+minversion = "6.0"
+addopts = [
+  "-ra",                       # Show short test summary for all outcomes
+  "--strict-markers",          # Raise error on unknown markers
+  "--strict-config",           # Raise error on unknown config options
+  "--tb=short",                # Short traceback format
+  "--cov=bin/bookmarkos",      # Coverage for the main library
+  "--cov-report=term-missing", # Show missing lines in coverage
+  "--cov-report=html:htmlcov", # HTML coverage report
+  "--cov-fail-under=80",       # Fail if coverage below 80%
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+  "unit: Unit tests",
+  "integration: Integration tests",
+  "slow: Tests that take a long time to run",
+  "parser: Tests for the HTML parser functionality",
+  "metrics: Tests for metrics calculation",
+  "io: Tests for input/output operations",
+  "cli: Tests for command-line tools",
+]
+filterwarnings = ["error", "ignore::UserWarning", "ignore::DeprecationWarning"]
