@@ -8,6 +8,11 @@ from typing import Any, Self, TextIO
 from bookmarkos.data.bookmarks import Folder, Bookmark
 
 
+type ReadableSource = str | TextIO | TextIOWrapper | StringIO
+"""Type alias for any source that can be read as text, including file names and
+file-like objects."""
+
+
 class BasicEncoder(JS.JSONEncoder):
     """A wrapper-style class around `JSONEncoder` to handle dict-based objects
     in the structure being converted to JSON. Also catches `set` instances and
@@ -49,7 +54,7 @@ class BookmarksDecoder(JS.JSONDecoder):
         return obj
 
 
-def read_content(file: str | TextIO | TextIOWrapper) -> str:
+def read_content(file: ReadableSource) -> str:
     """Read the content of `file`, regardless of its type (including if the
     file name indicates compressed data)."""
 
@@ -71,14 +76,14 @@ def read_content(file: str | TextIO | TextIOWrapper) -> str:
     return content
 
 
-def read_plain_json(file: str | TextIO | TextIOWrapper) -> Any:
+def read_plain_json(file: ReadableSource) -> Any:
     """Read the JSON content from the given file. Handles gzip-compressed
     content. Returns vanilla JSON."""
 
     return JS.loads(read_content(file))
 
 
-def read_bookmarks_json(file: str | TextIO | TextIOWrapper) -> Folder:
+def read_bookmarks_json(file: ReadableSource) -> Folder:
     """Read the JSON version of bookmarks data from the given input source and
     restore it to a tree structure based on the `Folder` and `Bookmark`
     classes."""
@@ -87,7 +92,7 @@ def read_bookmarks_json(file: str | TextIO | TextIOWrapper) -> Folder:
 
 
 def write_json_data(
-    data: Any, file: str | TextIO | TextIOWrapper, *,
+    data: Any, file: ReadableSource, *,
     json: dict[str, Any] | None = None, gzip: dict[str, Any] | None = None
 ) -> None:
     """Write the given data as JSON content. Handles gzip-compressing of
