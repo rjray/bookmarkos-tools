@@ -4,13 +4,14 @@
 
 from collections import Counter
 from unittest.mock import Mock, patch
+
+import pytest
+
 from bookmarkos.metrics import (
     get_largest_and_smallest, average_size, new_bookmarks_by_date,
     tags_usage_by_date, all_bookmarks_sorted, differentiate_metrics,
     gather_metrics
 )
-
-import pytest
 
 
 class TestGetLargestAndSmallest:
@@ -101,12 +102,13 @@ class TestAverageSize:
 
     @pytest.mark.metrics
     def test_average_size_empty_sizes(self):
-        """Test average with empty sizes raises ZeroDivisionError."""
+        """Test average with empty sizes returns zero."""
         mock_metrics = Mock()
         mock_metrics.sizes = Counter()
 
-        with pytest.raises(ZeroDivisionError):
-            average_size(mock_metrics)
+        result = average_size(mock_metrics)
+
+        assert result == 0.0
 
     @pytest.mark.metrics
     def test_average_size_single_item(self):
@@ -124,7 +126,7 @@ class TestAverageSize:
         mock_metrics = Mock()
         mock_metrics.sizes = None
 
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError):
             average_size(mock_metrics)
 
 
@@ -420,7 +422,7 @@ class TestDifferentiateMetrics:
 
         mock_these = Mock()
         mock_these.bookmarks = Mock()
-        mock_these.bookmarks.count = 100
+        mock_these.bookmarks.count = 3
         mock_these.bookmarks.items = {1, 2, 3}
 
         mock_these.folders = Mock()
@@ -451,10 +453,10 @@ class TestDifferentiateMetrics:
                 differentiate_metrics(mock_this_week, mock_these, None)
 
         # For initial data, delta should equal count
-        assert mock_these.bookmarks.delta == 100
+        assert mock_these.bookmarks.delta == 3
         assert mock_these.bookmarks.delta_pct == 1.0
         assert mock_these.bookmarks.added == {1, 2, 3}
-        assert mock_these.bookmarks.added_count == 100
+        assert mock_these.bookmarks.added_count == 3
         assert mock_these.bookmarks.deleted == set()
         assert mock_these.bookmarks.deleted_count == 0
 
