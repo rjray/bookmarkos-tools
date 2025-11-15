@@ -19,7 +19,8 @@ Ideas and goals that haven't been implemented yet.
 
 1. Fix parser code to no longer strip folder-related lines before processing
 2. ~~Make `bookmarks2json` default to reading from/writing to compressed files~~
-3. Database support
+3. Database support (needed at the parse-level?)
+4. Abstract parsing to allow other formats besides Bookmark OS in the future
 
 ## Metrics
 
