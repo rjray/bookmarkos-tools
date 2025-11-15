@@ -13,6 +13,7 @@ Ideas and goals that haven't been implemented yet.
    backup files and creates either the DB or (and?) files for all weeks
 4. Determine the option-needs of each tool and set up the TOML file
 5. Add support for the TOML file alongside existing options-handling
+6. Move processing and storage out of the `Bookmark OS` Dropbox directory
 
 ## Parsing
 
