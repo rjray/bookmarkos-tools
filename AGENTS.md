@@ -8,7 +8,7 @@
 - Run unit/integration tests: `make test-unit` / `make test-integration`
 - Run tests in parallel: `make test-parallel`
 - Generate coverage: `make coverage`
-- Linting: (add flake8/pylint if needed; placeholder in Makefile)
+- Linting: `make lint`
 
 ## Code Style
 

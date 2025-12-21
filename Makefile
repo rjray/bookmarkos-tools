@@ -34,7 +34,7 @@ coverage-xml:  ## Generate XML coverage report (for CI)
 	pytest tests/ --cov=bin/bookmarkos --cov-report=xml
 
 lint:  ## Run linting (if available)
-	@echo "Linting would go here (flake8, pylint, etc.)"
+	pylint bin || echo "Pylint not installed. Skipping linting."
 
 clean:  ## Clean up test artifacts
 	rm -rf .pytest_cache/
