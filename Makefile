@@ -1,5 +1,8 @@
 # Makefile for BookmarkOS Tools testing and development
 
+# Executable Python scripts that don't end in .py
+EXE_SCRIPTS = bin/bookmarks2json bin/bookmarks_report bin/restore_bookmarks
+
 .PHONY: help test test-unit test-integration test-all coverage lint clean install-test-deps
 
 help:  ## Show this help message
@@ -34,7 +37,7 @@ coverage-xml:  ## Generate XML coverage report (for CI)
 	pytest tests/ --cov=bin/bookmarkos --cov-report=xml
 
 lint:  ## Run linting (if available)
-	pylint bin || echo "Pylint not installed. Skipping linting."
+	pylint --max-line-length=80 $(EXE_SCRIPTS) bin/bookmarkos || echo "Pylint not installed. Skipping linting."
 
 clean:  ## Clean up test artifacts
 	rm -rf .pytest_cache/
