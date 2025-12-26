@@ -27,14 +27,13 @@ def process_dt(
         line: str,
         queue: deque[str],
         folder: Folder,
-        depth: int,
         parent: list[str],
         line_number: int = 0
 ) -> None:
     """Process a `<DT>` block."""
 
     # Add recursion depth protection
-    if depth > MAX_NESTING_DEPTH:
+    if len(parent) > MAX_NESTING_DEPTH:
         raise ValueError(
             f"Maximum nesting depth exceeded at line {line_number}")
 
@@ -55,18 +54,22 @@ def process_dt(
             # of a folder, then we process it recursively.
             if not queue:
                 raise ValueError(
-                    f"Unexpected end of input after folder '{markup}' at line {line_number}")
+                    f"Unexpected end of input after folder '{markup}'" +
+                    f" at line {line_number}"
+                )
 
             next_line = queue.popleft()
             if DL_OPEN_PATTERN.fullmatch(next_line):
                 subfolder = process_folder(
-                    markup, depth + 1, queue, parent, line_number + 1)
+                    markup, queue, parent, line_number + 1
+                )
                 folder.content.append(subfolder)
             else:
                 # Better error recovery - put line back
                 queue.appendleft(next_line)
                 raise ValueError(
-                    f"Missing opening <DL> after '{markup}' at line {line_number}, found '{next_line}'"
+                    f"Missing opening <DL> after '{markup}' at line" +
+                    f" {line_number}, found '{next_line}'"
                 )
         else:
             raise ValueError(
@@ -85,7 +88,8 @@ def process_dd(line: str, folder: Folder, line_number: int = 0) -> None:
             f'<DD> tag found but no previous bookmark at line {line_number}')
 
     notes = None
-    # This RE only looks for all content following the DD, to the end of the line.
+    # This RE only looks for all content following the DD, to the end of the
+    # line.
     m = DD_PATTERN.fullmatch(line)
     if m:
         notes = m.group(1)
@@ -99,12 +103,12 @@ def process_dd(line: str, folder: Folder, line_number: int = 0) -> None:
             last_item.notes = notes
     else:
         raise ValueError(
-            f'<DD> tag found after non-bookmark item at line {line_number}')
+            f'<DD> tag found after non-bookmark item at line {line_number}'
+        )
 
 
 def process_folder(
         text: str,
-        depth: int,
         queue: deque[str],
         path: list[str],
         line_number: int = 0
@@ -113,10 +117,12 @@ def process_folder(
     opening `<DL>` tag has been detected and proceeds until the closing tag
     is detected. Recurses into any sub-folders found."""
 
+    depth = len(path)
     # Add recursion depth protection
-    if depth > MAX_NESTING_DEPTH:
+    if len(path) > MAX_NESTING_DEPTH:
         raise ValueError(
-            f"Maximum folder nesting depth exceeded at line {line_number}")
+            f"Maximum folder nesting depth exceeded at line {line_number}"
+        )
 
     # Start with a fresh `Folder` instance, filled in with the content passed
     # as `text`. The `depth` parameter is used to create the marker we will
@@ -147,8 +153,7 @@ def process_folder(
         # see DT and DD tags.
         try:
             if '<DT>' in line:
-                process_dt(line, queue, folder, depth,
-                           parent, current_line_number)
+                process_dt(line, queue, folder, parent, current_line_number)
             elif '<DD>' in line:
                 process_dd(line, folder, current_line_number)
             else:
@@ -157,7 +162,7 @@ def process_folder(
         except ValueError as e:
             # Add context to errors
             raise ValueError(
-                f'Error processing "{folder.name}" at depth {depth}: {e}'
+                f'Error processing "{folder.name}" at depth {len(parent)}: {e}'
             ) from e
 
         line = None
@@ -205,4 +210,4 @@ def parse_bookmarks(content: str | TextIO | TextIOWrapper | StringIO) -> Folder:
     # Convert to deque for efficient operations
     line_queue = deque(lines)
 
-    return process_folder('', 0, line_queue, [], HEADER_LINES + 1)
+    return process_folder('', line_queue, [], HEADER_LINES + 1)

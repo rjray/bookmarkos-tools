@@ -66,7 +66,9 @@ def get_largest_and_smallest(
     return largest, list(reversed(smallest))
 
 
-def _gather_metrics(node: Folder, path: List[str], metrics: Metrics) -> Counter[str]:
+def _gather_metrics(
+        node: Folder, path: List[str], metrics: Metrics
+) -> Counter[str]:
     """Recursively gather metrics at folder `node`.
 
     Args:
@@ -75,7 +77,7 @@ def _gather_metrics(node: Folder, path: List[str], metrics: Metrics) -> Counter[
         metrics: Metrics object to update
 
     Returns:
-        Counter mapping folder IDs to their bookmark counts (excluding subfolders)
+        Counter mapping IDs to their bookmark counts (excluding subfolders)
     """
     # Used to make unique identifier for the folder. The "::" sequence is used
     # because folder names can (and do) contain "/".
@@ -357,7 +359,8 @@ def gather_metrics(week: Folder) -> Metrics:
     # Uniqueness of tags
     metrics.tags.unique_tags_count = len(metrics.tags.items)
 
-    # Top and bottom folders by size (5) - use the sizes collected during traversal
+    # Top and bottom folders by size (5) - use the sizes collected during
+    # traversal
     metrics.folders.top_n, metrics.folders.bottom_n = (
         get_largest_and_smallest(folder_sizes, 5)
     )
