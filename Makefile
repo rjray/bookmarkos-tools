@@ -37,7 +37,7 @@ coverage-xml:  ## Generate XML coverage report (for CI)
 	pytest tests/ --cov=bin/bookmarkos --cov-report=xml
 
 lint:  ## Run linting (if available)
-	pylint --max-line-length=80 $(EXE_SCRIPTS) bin/bookmarkos || echo "Pylint not installed. Skipping linting."
+	pylint --max-line-length=80 $(EXE_SCRIPTS) bin/bookmarkos
 
 clean:  ## Clean up test artifacts
 	rm -rf .pytest_cache/
