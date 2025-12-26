@@ -45,7 +45,7 @@ class TestProcessDt:
             mock_bookmark = Mock()
             MockBookmark.return_value.fill.return_value = mock_bookmark
 
-            process_dt(sample_bookmark_line, queue, folder, 1, parent)
+            process_dt(sample_bookmark_line, queue, folder, parent)
 
             # Verify bookmark was created and filled
             MockBookmark.assert_called_once()
@@ -69,12 +69,11 @@ class TestProcessDt:
             mock_subfolder = Mock()
             mock_process_folder.return_value = mock_subfolder
 
-            process_dt(sample_folder_line, queue, folder, 1, parent)
+            process_dt(sample_folder_line, queue, folder, parent)
 
             # Verify process_folder was called (queue now has remaining item)
             mock_process_folder.assert_called_once_with(
                 '<H3 ADD_DATE="1641921698" LAST_MODIFIED="1641921700">Test Folder</H3>',
-                2,  # depth + 1
                 # remaining queue after popping first item
                 deque(['    </DL><p>']),
                 ["root"],
@@ -93,7 +92,7 @@ class TestProcessDt:
         parent = ["root"]
 
         with pytest.raises(ValueError, match="Missing opening <DL>"):
-            process_dt(sample_folder_line, queue, folder, 1, parent)
+            process_dt(sample_folder_line, queue, folder, parent)
 
     @pytest.mark.parser
     def test_process_dt_invalid_line(self):
@@ -104,7 +103,7 @@ class TestProcessDt:
         invalid_line = '    <DT>Invalid content without proper tags'
 
         with pytest.raises(ValueError, match="Unrecognized <DT> format"):
-            process_dt(invalid_line, queue, folder, 1, parent)
+            process_dt(invalid_line, queue, folder, parent)
 
     def test_process_dt_empty_queue_for_folder(self, sample_folder_line):
         """Test processing a folder line when queue is empty."""
@@ -114,7 +113,7 @@ class TestProcessDt:
         parent = ["root"]
 
         with pytest.raises(ValueError, match="Unexpected end of input"):
-            process_dt(sample_folder_line, queue, folder, 1, parent)
+            process_dt(sample_folder_line, queue, folder, parent)
 
 
 class TestProcessDD:
@@ -186,7 +185,7 @@ class TestProcessFolder:
             mock_folder.content = Mock()  # Mock the content list
             MockFolder.return_value.fill.return_value = mock_folder
 
-            result = process_folder('', 0, queue, [])
+            result = process_folder('', queue, [])
 
             # Verify folder was created and configured
             MockFolder.assert_called_once()
@@ -211,7 +210,7 @@ class TestProcessFolder:
             MockFolder.return_value.fill.return_value = mock_folder
             mock_folder.name = "Test Folder"
 
-            process_folder(markup, 1, queue, ['root'])
+            process_folder(markup, queue, ['root'])
 
             MockFolder.return_value.fill.assert_called_once_with(markup)
             assert mock_folder.depth == 1
@@ -235,7 +234,7 @@ class TestProcessFolder:
             mock_folder.name = "Test Folder"
             MockFolder.return_value.fill.return_value = mock_folder
 
-            result = process_folder('', 0, queue, [])
+            result = process_folder('', queue, [])
 
             # Verify DT and DD processing were called
             mock_process_dt.assert_called_once()
@@ -258,7 +257,7 @@ class TestProcessFolder:
             MockFolder.return_value.fill.return_value = mock_folder
 
             with pytest.raises(ValueError, match="Closing <DL> for folder.*not found"):
-                process_folder('', 0, queue, [])
+                process_folder('', queue, [])
 
     @pytest.mark.parser
     def test_process_folder_unknown_content(self):
@@ -274,7 +273,7 @@ class TestProcessFolder:
             MockFolder.return_value.fill.return_value = mock_folder
 
             with pytest.raises(ValueError, match="Unknown content"):
-                process_folder('', 0, queue, [])
+                process_folder('', queue, [])
 
     @pytest.mark.parser
     def test_process_folder_skip_blank_lines(self):
@@ -292,7 +291,7 @@ class TestProcessFolder:
             mock_folder.content = []
             MockFolder.return_value.fill.return_value = mock_folder
 
-            result = process_folder('', 0, queue, [])
+            result = process_folder('', queue, [])
 
             # Should process DT once, skip empty line
             mock_process_dt.assert_called_once()
@@ -315,10 +314,8 @@ class TestParseBookmarks:
             # The signature now includes line_number parameter
             args = mock_process_folder.call_args[0]
             assert args[0] == ''  # text
-            assert args[1] == 0   # depth
-            assert isinstance(args[2], deque)  # queue should be a deque
-            assert args[3] == []  # path
-            assert args[4] == 5   # line_number (HEADER_LINES + 1)
+            assert isinstance(args[1], deque)  # queue should be a deque
+            assert args[2] == []  # path
             assert result == mock_root
 
     @pytest.mark.parser
