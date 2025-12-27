@@ -35,7 +35,8 @@ def process_dt(
     # Add recursion depth protection
     if len(parent) > MAX_NESTING_DEPTH:
         raise ValueError(
-            f"Maximum nesting depth exceeded at line {line_number}")
+            f"Maximum nesting depth exceeded at line {line_number}"
+        )
 
     # Look for either A or H3 following a DT. Preserve the specific tag and the
     # markup itself.
@@ -73,10 +74,12 @@ def process_dt(
                 )
         else:
             raise ValueError(
-                f"Unknown tag type '{tag}' in <DT> at line {line_number}")
+                f"Unknown tag type '{tag}' in <DT> at line {line_number}"
+            )
     else:
         raise ValueError(
-            f"Unrecognized <DT> format at line {line_number}: '{line}'")
+            f"Unrecognized <DT> format at line {line_number}: '{line}'"
+        )
 
 
 def process_dd(line: str, folder: Folder, line_number: int = 0) -> None:
@@ -85,7 +88,8 @@ def process_dd(line: str, folder: Folder, line_number: int = 0) -> None:
     # Check if folder has any content
     if not folder.content:
         raise ValueError(
-            f'<DD> tag found but no previous bookmark at line {line_number}')
+            f'<DD> tag found but no previous bookmark at line {line_number}'
+        )
 
     notes = None
     # This RE only looks for all content following the DD, to the end of the
@@ -158,7 +162,8 @@ def process_folder(
                 process_dd(line, folder, current_line_number)
             else:
                 raise ValueError(
-                    f'Unknown content at line {current_line_number}: {line}')
+                    f'Unknown content at line {current_line_number}: {line}'
+                )
         except ValueError as e:
             # Add context to errors
             raise ValueError(
@@ -197,7 +202,8 @@ def parse_bookmarks(content: str | TextIO | TextIOWrapper | StringIO) -> Folder:
     # Validate minimum content length
     if len(data) < HEADER_LINES + 1:
         raise ValueError(
-            f'Expected at least {HEADER_LINES + 1} lines, got {len(data)}')
+            f'Expected at least {HEADER_LINES + 1} lines, got {len(data)}'
+        )
 
     # Drop the first 4 lines of content, not used for anything.
     lines = data[HEADER_LINES:]
