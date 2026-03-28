@@ -7,7 +7,7 @@ import tempfile
 from typing import Generator, Dict, Any
 from unittest.mock import Mock
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 # Add the bin directory to the Python path for imports
 bin_path = os.path.join(os.path.dirname(__file__), '..', 'bin')

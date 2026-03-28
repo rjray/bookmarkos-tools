@@ -5,9 +5,9 @@
 from collections import Counter
 from unittest.mock import Mock, patch
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
-from bookmarkos.metrics import (
+from bookmarkos.metrics import (  # pyright: ignore[reportMissingImports]
     get_largest_and_smallest, average_size, new_bookmarks_by_date,
     tags_usage_by_date, all_bookmarks_sorted, differentiate_metrics,
     gather_metrics

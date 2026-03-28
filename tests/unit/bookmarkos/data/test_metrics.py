@@ -4,7 +4,7 @@
 
 from collections import Counter
 from unittest.mock import Mock
-from bookmarkos.data.metrics import (
+from bookmarkos.data.metrics import (  # pyright: ignore[reportMissingImports]
     CoreMetrics, SizeMetrics, FoldersMetrics,
     BookmarksMetrics, TagsMetrics, Metrics, SizeRankedList
 )

@@ -5,11 +5,11 @@
 from collections import deque
 from io import StringIO
 from unittest.mock import Mock, patch
-from bookmarkos.parser import (
+from bookmarkos.parser import (  # pyright: ignore[reportMissingImports]
     process_dt, process_dd, process_folder, parse_bookmarks
 )
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 
 @pytest.fixture

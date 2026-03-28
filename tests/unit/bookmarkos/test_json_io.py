@@ -6,12 +6,12 @@ import gzip
 import json
 from io import StringIO
 from unittest.mock import Mock, patch
-from bookmarkos.json_io import (
+from bookmarkos.json_io import (  # pyright: ignore[reportMissingImports]
     BasicEncoder, BookmarksDecoder, read_content, read_plain_json,
     read_bookmarks_json, write_json_data
 )
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 
 class TestBasicEncoder:

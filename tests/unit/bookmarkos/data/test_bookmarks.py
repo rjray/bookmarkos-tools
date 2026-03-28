@@ -2,9 +2,9 @@
 
 """Unit tests for bookmarkos.data.bookmarks module."""
 
-from bookmarkos.data.bookmarks import Node, Folder, Bookmark, parse_fragment
+from bookmarkos.data.bookmarks import Node, Folder, Bookmark, parse_fragment  # type: ignore
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 
 class TestNode:
