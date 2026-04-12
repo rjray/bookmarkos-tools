@@ -22,8 +22,8 @@ These are the metrics being gathered in the current implementation.
 11. Largest folder size
 12. Average folder size
 13. Maximum depth
-14. Top 5 folders by size (by bookmarks only)
-15. Bottom 5 folders by size (by bookmarks only)
+14. Top 5 folders by size
+15. Bottom 5 folders by size
 
 Items 3-8 are only calculated when there is a second (basis) data-set to
 compare the focus data-set with. In the absence of a basis the values will
