@@ -79,9 +79,9 @@ def _gather_metrics(
     Returns:
         Counter mapping IDs to their bookmark counts (excluding subfolders)
     """
-    # Used to make unique identifier for the folder. The "::" sequence is used
+    # Used to make unique identifier for the folder. The arrow character is used
     # because folder names can (and do) contain "/".
-    folder_id = '::'.join(path)
+    folder_id = '(root)' if path == [''] else ' ⟶ '.join(path[1:])
 
     # Update maximum depth
     metrics.folders.max_depth = max(metrics.folders.max_depth, node.depth)
@@ -90,9 +90,6 @@ def _gather_metrics(
     folder_size = len(node.content)
     bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
     subfolders = [x for x in node.content if isinstance(x, Folder)]
-
-    # Count of bookmarks only (for ranking purposes)
-    bookmark_count = len(bookmarks)
 
     # Folder-oriented metrics
     metrics.folders.count += 1
@@ -117,7 +114,7 @@ def _gather_metrics(
 
     # Initialize folder sizes counter for this level
     folder_sizes: Counter[str] = Counter()
-    folder_sizes[folder_id] = bookmark_count
+    folder_sizes[folder_id] = folder_size
 
     # Recurse into subfolders
     for subfolder in subfolders:
