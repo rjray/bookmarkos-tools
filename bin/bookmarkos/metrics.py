@@ -91,9 +91,6 @@ def _gather_metrics(
     bookmarks = [x for x in node.content if isinstance(x, Bookmark)]
     subfolders = [x for x in node.content if isinstance(x, Folder)]
 
-    # Count of bookmarks only (for ranking purposes)
-    bookmark_count = len(bookmarks)
-
     # Folder-oriented metrics
     metrics.folders.count += 1
     metrics.folders.items.add(folder_id)
@@ -117,7 +114,7 @@ def _gather_metrics(
 
     # Initialize folder sizes counter for this level
     folder_sizes: Counter[str] = Counter()
-    folder_sizes[folder_id] = bookmark_count
+    folder_sizes[folder_id] = folder_size
 
     # Recurse into subfolders
     for subfolder in subfolders:
